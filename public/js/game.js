@@ -25,7 +25,6 @@ var game = (function () {
                      'arrow keys : Move a selected army north, west, south, east.<BR>.'+
                      '1 : Build a city, cost starts at 100 gold, current cost is displayed in 100s. or click "C" button.<BR>'+
                      '2 : Build a wall, costs 50 gold. walls take 100 troops to breach or click "W" button.<BR>'+
-                     //'3 : Toggle leaving army trails when moving-- currently disabled or clict "T" button.<BR>'+
                      '4 : Enable Queen movement or click "Q" button.<BR>'+
                      'q : Clear all selected armies.<BR>'+
                      'p : Send a radar ping and reveal all units within 100 hex. costs at least 1000.<BR>'+
