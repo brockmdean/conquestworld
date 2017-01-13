@@ -1,0 +1,37 @@
+<!doctype html>
+<HTML>
+<link rel="stylesheet" href="css/DarkGenerals.css"  type="text/css"/>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="js/lib/radio.min.js"></script>
+<script src="js/lib/uuid-random.min.js"></script>
+<script src="js/lib/lz-string.js"></script>
+<script src="js/simpleTable.js"></script>
+<script src="js/remoteDatabase.js"></script>
+<script src="js/game.js"></script>
+<script src="js/game.drawLayer.js"></script>
+<script src="js/game.splash.js"></script>
+<script src="js/game.model.js"></script>
+
+<script>
+    $(function () { game.initModule('#ConquestWorld' ); });
+  </script>
+<head>
+<title>Conquer the World</title>
+
+</head>
+<body>
+  <div id="ConquestWorld"></div>
+<script src="https://www.gstatic.com/firebasejs/3.6.4/firebase.js"></script>
+<script>
+  // Initialize Firebase
+  var config = {
+    apiKey: "AIzaSyCZVSQ4AEZ8KOauMqhefalUSrEG1pf7zUM",
+    authDomain: "darkgenerals-17fac.firebaseapp.com",
+    databaseURL: "https://darkgenerals-17fac.firebaseio.com",
+    storageBucket: "darkgenerals-17fac.appspot.com",
+    messagingSenderId: "294204791883"
+  };
+  firebase.initializeApp(config);
+</script>
+</body>
+</HTML>
