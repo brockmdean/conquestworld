@@ -1,4 +1,4 @@
-/* global game, $, radio  */
+/* global game, radio  */
 /* eslint semi:["error", "always"] , indent:["error",4] , space-before-blocks:["error","never"] */
 /* eslint key-spacing: ["error", {
     "align": {
@@ -11,13 +11,16 @@
 game.model = (function (){
     'use strict';
   // ---------------- BEGIN MODULE SCOPE VARIABLES --------------
-    var db = simpleTable.create();
-    db.uniqueKey('hexID');
-    db.Fields(['hexID', 'x', 'y', 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
-    var updatesDb = simpleTable.create();
-    updatesDb.uniqueKey('ID');
-    updatesDb.Fields(['ID', 'date', 'r', 'seq', 'sendseq']);
-        // database filter functions
+  //  var db = simpleTable.create();
+  //  db.uniqueKey('hexID');
+  //  db.Fields(['hexID', 'x', 'y', 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
+  //  var updatesDb = simpleTable.create();
+  //  updatesDb.uniqueKey('ID');
+  //  updatesDb.Fields(['ID', 'date', 'r', 'seq', 'sendseq']);
+  //  var rDB=remoteDatabase.create();
+    //     // database filter functions
+    var rDB = database;
+    var db  = database;
     var matchSelected = function (r){ return r.S; };
     var matchSelectedArmies = function (r){ return r.S && r.UID == game.uid() && r.A > 0; };
     var matchTroopSites = function (r){ return (r.K > 0 || r.C > 0) && r.UID == game.uid(); };
@@ -116,6 +119,8 @@ game.model = (function (){
                 // crazy , the - is being treated as a subtraction
                 // but the + is being treated as a string concatenation
                 // force the addition interpretation by using parseint.
+//TODO move the parsint calls to the top, so I don't have to make so many 
+
         x = xy[0] - 1;
         y = xy[1];
         neighborIDs.push(x + '_' + y);
@@ -225,50 +230,50 @@ game.model = (function (){
 
                 // printRecord(r);
         if (!db.keyExists(r.hexID)){
-                        // if the record does not exist this rule applies
+            // if the record does not exist this rule applies
             if (r.UID !== game.uid()){ r.S = 0; r.V = 0; } else { r.V = 1; }
-
-                        // console.log("insert a new record from fb");
-                        // printRecord(r);
+	    
+            // console.log("insert a new record from fb");
+            // printRecord(r);
             db.insert(r);
         } else {
             if (r.UID !== game.uid()){ r.S = 0; }
-                        // if the record does exist, keep the local visibility
-                        // console.log("update a record from fb")
+            // if the record does exist, keep the local visibility
+            // console.log("update a record from fb")
             localR = db.query({hexID: r.hexID});
             localV = localR[0].V;
-                        // printRecord(localR[0]);
-                        // printRecord(r);
+            // printRecord(localR[0]);
+            // printRecord(r);
             r.V = localV;
-
-                        // printRecord(r);
-                        // console.log("there are "+records.length+" records with "+r.hexID);
-                        // printRecord(r);
-
-                        // here we need to check for winning and loosing.
-                        // so get the current state of the hex.
-                        // because the update is just going to have K =0, but
-                        // if it currently is K=1, our queen just died.
+	    
+            // printRecord(r);
+            // console.log("there are "+records.length+" records with "+r.hexID);
+            // printRecord(r);
+	    
+            // here we need to check for winning and loosing.
+            // so get the current state of the hex.
+            // because the update is just going to have K =0, but
+            // if it currently is K=1, our queen just died.
             queenR = db.query(matchQueen)[0];
-                        // console.log("queen R ");
-                        // printRecord(queenR);
-                        // BUG once the queen has been removed this causes errors
-                        // because teh queen cant be found on line 243
+            // console.log("queen R ");
+            // printRecord(queenR);
+            // BUG once the queen has been removed this causes errors
+            // because teh queen cant be found on line 243
             if (queenR && r.hexID == queenR.hexID){ // we are updating the queen
                 if (r.K == 0 && queenR.K == 1){
-                                        // we died.
-                                        // now update all our cits to the new owner.
-                                        // console.log("we are loosing");
+                    // we died.
+                    // now update all our cits to the new owner.
+                    // console.log("we are loosing");
                     myCities = db.matchCities();
                     newOwner = r.UID;
-                    remoteDatabase.openTransaction();
+                    rDB.openTransaction();
                     myCities.forEach(function (_r){
                         _r.UID = newOwner;
                         _r.V = 0;
-                        remoteDatabase.pushUpdate(_r);
+                        rDB.pushUpdate(_r);
                     }
-                                        );
-                                        remoteDatabase.closeTransaction();
+                                    );
+                    rDB.closeTransaction();
                     radio('losing-message').broadcast();
                 }
             }
@@ -277,17 +282,17 @@ game.model = (function (){
         if (r.V || game.visibility()){
             radio('draw-hexagon').broadcast(r);
         }
-
-                // update the visibility of the neighbors
+	
+        // update the visibility of the neighbors
         if (r.UID == game.uid()){
             n = findNeighbors(r);
-                        // console.log("found these neighbors");
-                        // n.forEach(printRecord);
+            // console.log("found these neighbors");
+            // n.forEach(printRecord);
             n.forEach(function (_r){
-                                                // printRecord(_r);
-                                          db.update({hexID: _r.hexID, V: 1});
-                                                                  _r.V = 1;
-                                                                  radio('draw-hexagon').broadcast(_r);
+                // printRecord(_r);
+                db.update({hexID: _r.hexID, V: 1});
+                _r.V = 1;
+                radio('draw-hexagon').broadcast(_r);
             });
         }
     };
@@ -300,21 +305,6 @@ game.model = (function (){
 // 3. get list of potentially invisible tiles (eg visible tiles that are not ours)
 // 4. if at least 1 neighbor is our tile stay visible , else clear the visibility
 //   tag and send that hex to the drawlayer
-
-  // ------------------- BEGIN PUBLIC METHODS -------------------
-  // Begin public method /configModule/
-  // Purpose    : Adjust configuration of allowed keys
-  // Arguments  : A map of settable keys and values
-  //   * color_name - color to use
-  // Settings   :
-  //   * configMap.settable_map declares allowed keys
-  // Returns    : true
-  // Throws     : none
-  //
-    var configModule = function (input_map){
-        return true;
-    };
-  // End public method /configModule/
 
   // Begin public method /initModule/
   // Purpose    : Initializes module
@@ -333,12 +323,12 @@ game.model = (function (){
                          if (r.length == 0){ done = true; }
         } while (!done);
 
-        remoteDatabase.openTransaction();
+        rDB.openTransaction();
         var r = createRecord({UID: game.uid(), 'hexID': x + '_' + y, K: 1, A: 5});
-        remoteDatabase.pushUpdate(r);
+        rDB.pushUpdate(r);
         //      for(var i =1; i<10;i++){
         //              r = createRecord({UID:"qwerqwef",'hexID':(x+i*10)+"_"+y,A:5});
-        //              remoteDatabase.pushUpdate(r);
+        //              rDB.pushUpdate(r);
         //      }
         //      playerMap["qwerqwef"]="man";
                 // var m = createRecord({hexID:(x+1)+"_"+y,M:getRandomIntInclusive(0,3)});
@@ -350,8 +340,8 @@ game.model = (function (){
                 // var backR= JSON.parse(JSONstringR);
                 // console.log(backR);
 
-                // remoteDatabase.pushUpdate(m);
-        remoteDatabase.closeTransaction();
+                // rDB.pushUpdate(m);
+        rDB.closeTransaction();
         console.log('creating king at x:' + x + ' y:' + y);
         initialKingLocation = {x: x, y: y};
     };
@@ -365,7 +355,7 @@ game.model = (function (){
                   var x = getRandomIntInclusive(0, 300);
                   var y = getRandomIntInclusive(0, 300);
                         // var r = createRecord({hexID:x+"_"+y,M:getRandomIntInclusive(1,2)});
-                        // remoteDatabase.updateWorldCoordinate(r);
+                        // rDB.updateWorldCoordinate(r);
           }
     };
     var generateNewTroop = function (record, recordNumber){
@@ -374,14 +364,14 @@ game.model = (function (){
           var count = record.A + 1;
           record.A = count;
           // console.log("genNewTroop "+record);
-        remoteDatabase.openTransaction();
-          remoteDatabase.pushUpdate(record);
-        remoteDatabase.closeTransaction();
+        rDB.openTransaction();
+          rDB.pushUpdate(record);
+        rDB.closeTransaction();
     };
     var oneSecondUpdate = function (){
           // update army generation at cities and king
                 // console.log("simpleTable record count "+db.recordCount());
-                // console.log("remoteDatabase "+remoteDatabase.bandwidth());
+                // console.log("rDB "+rDB.bandwidth());
           // update gold for occupied land
           var records = db.myHex();
           var newGold = records.length;
@@ -447,9 +437,9 @@ game.model = (function (){
     };
     var buildCities = function (){
           var cities = db.matchSelected();
-        remoteDatabase.openTransaction();
+        rDB.openTransaction();
         cities.forEach(buildCity);
-        remoteDatabase.closeTransaction();
+        rDB.closeTransaction();
           // console.log("found "+cities.length+" selected hexes");
     };
     var buildCity = function (record, recordNumber){
@@ -464,20 +454,20 @@ game.model = (function (){
       record.C = 1;
       if (record.UID == 0){ record.UID = game.uid(); }
                         // printRecord(record);
-                  remoteDatabase.pushUpdate(record);
+                  rDB.pushUpdate(record);
                   radio('draw-gold').broadcast(gold);
           }
     };
     var buildWalls = function (){
           var cities = db.matchSelected();
-        remoteDatabase.openTransaction();
+        rDB.openTransaction();
         cities.forEach(buildWall);
-        remoteDatabase.closeTransaction();
+        rDB.closeTransaction();
     };
     var buildWall = function (record, recordNumber){
           if (record.A == 0 && record.W == 0 && record.K == 0 && record.M == 0 && gold > kWallCost){
                   gold -= kWallCost;
-                  remoteDatabase.pushUpdate(createRecord({'hexID': record.hexID, W: kWallStrength}));
+                  rDB.pushUpdate(createRecord({'hexID': record.hexID, W: kWallStrength}));
                   radio('draw-gold').broadcast(gold);
           }
     };
@@ -525,9 +515,9 @@ game.model = (function (){
           var updatedRecords = moveDb.query(function (r){ return true; });
           // console.log("updated records");
           // updatedRecords.forEach(function(r){console.log(r)});
-        remoteDatabase.openTransaction();
-          updatedRecords.forEach(remoteDatabase.pushUpdate);
-        remoteDatabase.closeTransaction();
+        rDB.openTransaction();
+          updatedRecords.forEach(rDB.pushUpdate);
+        rDB.closeTransaction();
     };
     var moveQueen = function (dir){
                 // var records = db.query(matchQueen);
@@ -549,10 +539,10 @@ game.model = (function (){
             db.update({hexID: record.hexID, K: 0, UID: 0});
         }
         db.update({hexID: targetRecord.hexID, K: 1, UID: game.uid()});
-        remoteDatabase.openTransaction();
-        remoteDatabase.pushUpdate(record);
-        remoteDatabase.pushUpdate(targetRecord);
-        remoteDatabase.closeTransaction();
+        rDB.openTransaction();
+        rDB.pushUpdate(record);
+        rDB.pushUpdate(targetRecord);
+        rDB.closeTransaction();
     };
     var buildMoveDb = function (dir, record){
           var target = getTarget(dir, record, false);
@@ -768,16 +758,17 @@ game.model = (function (){
 
     var initModule = function (playerName){
         if (!playerName){ playerName = 'anonymous'; };
-        remoteDatabase.initModule({location: game.world() + '/updates', callback: update},
+        rDB.initModule({location: game.world() + '/updates', callback: update},
                                 {location: game.world() + '/users', callback: addPlayerNameToList},
-                                {location: game.world() + '/world', callback: updateWorld});
+                                {location: game.world() + '/world'});
 
-        remoteDatabase.pushUser({UID: game.uid(), name: playerName});
+        rDB.pushUser({UID: game.uid(), name: playerName});
       // spawn the king
       // TODO spawn the king away from everyone else.
 
-        initializeWorld();
-        remoteDatabase.readWorld(createKing);
+//        initializeWorld();
+//	rDB.tryUpdate();
+        rDB.joinWorld(createKing);
       // createKing();
         updateIntervalID = setInterval(oneSecondUpdate, 1000);
       // setTimeout(oneSecondUpdate,10000);
@@ -799,7 +790,7 @@ game.model = (function (){
         return true;
     };
     var stopUpdates = function (){
-                 clearInterval(updateIntervalID);
+        clearInterval(updateIntervalID);
     };
     var dumpTransactions = function (){
                 // console.log("dump transactions");
@@ -811,7 +802,6 @@ game.model = (function (){
 
   // return public methods
     return {
-        configModule        : configModule,
         initModule          : initModule,
         createdKingLocation : createdKingLocation
     };

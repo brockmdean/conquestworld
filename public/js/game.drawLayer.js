@@ -152,7 +152,7 @@ game.drawLayer = (function (){
         }
     };
     var ping = function (data){
-        // pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
+        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
         var pd = pingImgData.data;
         // console.log(pingImgData.data.length);
         // console.log(data);
@@ -445,6 +445,8 @@ game.drawLayer = (function (){
         cxt.fillText('Q', queen.x + 7, queen.y + queen.width - 8);
     };
     var drawLeaderBoard = function (data){
+
+	cxt.save();
         cachedLeaderBoard = data;
         // map uid to names here.
         // cachedLeaderBoard.forEach(function(r){r.name = data.p[r.UID]});
@@ -459,6 +461,7 @@ game.drawLayer = (function (){
         topLeft.y = 0;
         cxt.font = '17px serif';
         cxt.fillStyle = 'black';
+	cxt.strokeStyle = 'black';
         cxt.clearRect(topLeft.x, topLeft.y, leaderWidth, leaderHeight);
         for (var i = 0; i < cachedLeaderBoard.length; i++){
             cxt.strokeRect(topLeft.x, topLeft.y + nameHeight * i, nameWidth, nameHeight);
@@ -466,6 +469,7 @@ game.drawLayer = (function (){
             cxt.fillText(cachedLeaderBoard[i].name.substr(0, 23), topLeft.x + 4, topLeft.y + nameHeight * i + nameHeight - 5);
             cxt.fillText(cachedLeaderBoard[i].score, topLeft.x + nameWidth + 4, topLeft.y + nameHeight * i + nameHeight - 5);
         }
+	cxt.restore();
     };
     var drawGold = function (gold){
         // cxt.strokeStyle='white';

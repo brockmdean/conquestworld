@@ -13,7 +13,7 @@
 
 var game = (function () {
   'use strict';
-  var _world="dev3";
+  var _world="dev";
   var _UID;
   var _visibility =false;
   var _debug=false;
