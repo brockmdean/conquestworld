@@ -177,6 +177,7 @@ game.drawLayer = (function (){
         drawPingMap();
     };
     var drawPingMap = function (){
+	//console.log("drawPingMap");
         cxt.putImageData(pingImgData, boardWidth - kPingRange * 2, boardHeight - kPingRange * 2);
         cxt.fillStyle = 'black';
         cxt.beginPath();
@@ -230,14 +231,17 @@ game.drawLayer = (function (){
     var beginPan = function (e){
         console.log('beginPan');
         // how multiple select might work
-        console.log('meta key ' + e.shiftKey);
+        console.log('shift key ' + e.shiftKey);
+        console.log('shift key ' + e.ctrlKey);
         beginPanX = e.pageX - Xcenter;
         beginPanY = e.pageY - Ycenter;
         startXcenter = Xcenter;
         startYcenter = Ycenter;
         startXpoint= e.pageX ;
         startYpoint= e.pageY;
-        select = e.shiftKey;
+	select='none';
+	if(e.shiftKey){select='shift';}
+	if(e.ctrlKey){select='control';}
         canvasImage= cxt.getImageData(0,
                                       0,
                                       document.getElementById('GameBoard').width,
@@ -245,11 +249,11 @@ game.drawLayer = (function (){
         $('#GameBoard').on('mousemove',function(e){pan(e,select);});
     };
     var pan = function (e, select){
-        console.log(select);
+        //console.log(select);
         var diffX = e.pageX - beginPanX;
         var diffY = e.pageY - beginPanY;
         // console.log("pan x"+diffX+" Y:"+diffY);
-        if( !select ){
+        if( select==='none' ){
             Xcenter = diffX;
             Ycenter = diffY;
             drawBoard();
@@ -264,7 +268,7 @@ game.drawLayer = (function (){
                                                       y      : YcenterHex,
                                                       width  : boardWidthInHex,
                                                       height : boardHeightInHex,
-                                                      select : false});
+                                                      select : 'none'});
         }else{
             cxt.putImageData(canvasImage,0,0);
             cxt.strokeStyle='white';
@@ -278,7 +282,7 @@ game.drawLayer = (function (){
             dontClick = true;
         }
         $('#GameBoard').off('mousemove');
-        if(select){
+        if(select === 'shift' || select === 'control'){
             cxt.putImageData(canvasImage,0,0);
 	    var startPoint =findHex({pageX:startXpoint, pageY:startYpoint});
             var startXInHex = hPxToHex(startXpoint);
@@ -290,7 +294,7 @@ game.drawLayer = (function (){
                                                       y      : startPoint.y,
                                                       width  : Math.abs(startPoint.x-endPoint.x),
                                                       height : Math.abs(startPoint.y-endPoint.y),
-                                                      select : true});
+                                                      select : select});
             
         }
     };
@@ -470,6 +474,7 @@ game.drawLayer = (function (){
             cxt.fillText(cachedLeaderBoard[i].score, topLeft.x + nameWidth + 4, topLeft.y + nameHeight * i + nameHeight - 5);
         }
 	cxt.restore();
+	drawPingMap();
     };
     var drawGold = function (gold){
         // cxt.strokeStyle='white';
@@ -513,6 +518,8 @@ game.drawLayer = (function (){
     var drawHexagon = function (record){
         // console.log("drawLayer - id:"+record.hexID+" s:"+record.S+" v:"+record.V);
         //
+	cxt.save();
+	//cxt.globalCompositeOperation="destination-over";
         var color;
         var point = getPixelXyFromHexID(record.hexID);
         if (!record.V && !game.visibility()){
@@ -581,6 +588,7 @@ game.drawLayer = (function (){
             cxt.fillStyle = 'black';
             cxt.fillText(record.A, point.x - 8, point.y + 7);
         }
+	cxt.restore();
     };
     var drawTerain = function (type, point){
         if (type === 1){
