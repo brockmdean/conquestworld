@@ -71,30 +71,8 @@ game.model = (function (){
     var sendSeq = 0;
     var initialKingLocation;
     var playerMap = {};
-  // ----------------- END MODULE SCOPE VARIABLES ---------------
 
-  // ------------------- BEGIN UTILITY METHODS ------------------
-  // example : getTrimmedString
-  // Returns a random integer between min (included) and max (included)
-// Using Math.round() will give you a non-uniform distribution!
-    var getRandomIntInclusive = function (min, max){
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    };
-    var createRecord = function (keys){
-          var r = {UID: 0, hexID: '', x: 0, y: 0, K: 0, C: 0, W: 0, A: 0, S: 0, V: 0, M: 0};
-          for (var k in keys){
-                  r[k] = keys[k];
-          }
-          var id = keys.hexID;
-          var xy = id.split('_');
-          r.x = xy[0];
-          r.y = xy[1];
-          // console.log("createRecord ");
-          // console.log(r);
-          return r;
-    };
+    
     var dumpDatabase = function (){
           console.log('-------- dumpDatabase!!!!');
           db.print();
@@ -158,7 +136,7 @@ game.model = (function (){
                 t = db.query({hexID: neighborIDs[i]});
                 neighbors.push(t[0]);
             } else {
-                t = createRecord({hexID: neighborIDs[i]});
+                t = game.util.createRecord({hexID: neighborIDs[i]});
                 neighbors.push(t);
                 db.insert(t);
             }
@@ -178,7 +156,7 @@ game.model = (function (){
         if (records.length == 0){
                         // this is the only time the model will add a record to the db,
                         // all other records are added in response to a update from firebase.
-                        // newRecord=createRecord({'hexID':hexID,S:1});
+                        // newRecord=game.util.createRecord({'hexID':hexID,S:1});
                         // db.insert(newRecord);
                         // radio('draw-hexagon').broadcast(newRecord);
         } else {
@@ -317,21 +295,21 @@ game.model = (function (){
         var done = false;
         var x, y, r;
         do { // make sure we don't spawn on an occupied location.
-                 x = getRandomIntInclusive(5, 200);
-                 y = getRandomIntInclusive(5, 200);
+                 x = game.util.getRandomIntInclusive(5, 200);
+                 y = game.util.getRandomIntInclusive(5, 200);
                          r = db.query({hexID: x + '_' + y});
                          if (r.length == 0){ done = true; }
         } while (!done);
 
         rDB.openTransaction();
-        var r = createRecord({UID: game.uid(), 'hexID': x + '_' + y, K: 1, A: 5});
+        var r = game.util.createRecord({UID: game.uid(), 'hexID': x + '_' + y, K: 1, A: 5});
         rDB.pushUpdate(r);
         //      for(var i =1; i<10;i++){
-        //              r = createRecord({UID:"qwerqwef",'hexID':(x+i*10)+"_"+y,A:5});
+        //              r = game.util.createRecord({UID:"qwerqwef",'hexID':(x+i*10)+"_"+y,A:5});
         //              rDB.pushUpdate(r);
         //      }
         //      playerMap["qwerqwef"]="man";
-                // var m = createRecord({hexID:(x+1)+"_"+y,M:getRandomIntInclusive(0,3)});
+                // var m = game.util.createRecord({hexID:(x+1)+"_"+y,M:game.util.getRandomIntInclusive(0,3)});
                 // this string was 126 bytes long.
                 // var JSONstringR = JSON.stringify(r);
                 // console.log(r);
@@ -352,9 +330,9 @@ game.model = (function (){
 
           // make some mountians
           for (var i = 0; i < 900; i++){
-                  var x = getRandomIntInclusive(0, 300);
-                  var y = getRandomIntInclusive(0, 300);
-                        // var r = createRecord({hexID:x+"_"+y,M:getRandomIntInclusive(1,2)});
+                  var x = game.util.getRandomIntInclusive(0, 300);
+                  var y = game.util.getRandomIntInclusive(0, 300);
+                        // var r = game.util.createRecord({hexID:x+"_"+y,M:game.util.getRandomIntInclusive(1,2)});
                         // rDB.updateWorldCoordinate(r);
           }
     };
@@ -467,7 +445,7 @@ game.model = (function (){
     var buildWall = function (record, recordNumber){
           if (record.A == 0 && record.W == 0 && record.K == 0 && record.M == 0 && gold > kWallCost){
                   gold -= kWallCost;
-                  rDB.pushUpdate(createRecord({'hexID': record.hexID, W: kWallStrength}));
+                  rDB.pushUpdate(game.util.createRecord({'hexID': record.hexID, W: kWallStrength}));
                   radio('draw-gold').broadcast(gold);
           }
     };
@@ -492,31 +470,31 @@ game.model = (function (){
           queenOn = v;
     };
     var move = function (dir){
-                // you cant move the queen and troops at the same
-                // time;
-                // BUG you cant move an empty square
+        // you cant move the queen and troops at the same
+        // time;
+        // BUG you cant move an empty square
         if (queenOn){
             moveQueen(dir);
             return;
         }
-          var records = db.matchSelectedArmies();
-          moveDb = simpleTable.create();
+        var records = db.matchSelectedArmies();
+        moveDb = simpleTable.create();
         moveDb.uniqueKey('hexID');
         moveDb.Fields(['hexID', 'x', 'y', 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
-          records.forEach(function (r){ moveDb.insert(r); });
-          records.forEach(function (record){ buildMoveDb(dir, record); });
-          records = moveDb.query(matchSelected);
-          // console.log("move database has "+records.length+" records");
-          // sort the records by direction of move, so that the leading edge goes first.
-                // console.log("=======GeoSort "+dir);
-          records.sort(geoSort(dir));
-                // console.log("=======GeoSort "+dir);
-          records.forEach(function (record){ oneMove(dir, record); });
-          var updatedRecords = moveDb.query(function (r){ return true; });
-          // console.log("updated records");
-          // updatedRecords.forEach(function(r){console.log(r)});
+        records.forEach(function (r){ moveDb.insert(r); });
+        records.forEach(function (record){ buildMoveDb(dir, record); });
+        records = moveDb.query(matchSelected);
+        // console.log("move database has "+records.length+" records");
+        // sort the records by direction of move, so that the leading edge goes first.
+        // console.log("=======GeoSort "+dir);
+        records.sort(geoSort(dir));
+        // console.log("=======GeoSort "+dir);
+        records.forEach(function (record){ oneMove(dir, record); });
+        var updatedRecords = moveDb.query(function (r){ return true; });
+        // console.log("updated records");
+        // updatedRecords.forEach(function(r){console.log(r)});
         rDB.openTransaction();
-          updatedRecords.forEach(rDB.pushUpdate);
+        updatedRecords.forEach(rDB.pushUpdate);
         rDB.closeTransaction();
     };
     var moveQueen = function (dir){
@@ -584,7 +562,7 @@ game.model = (function (){
           } else {
                   // if the record is not in the db, it must be an empty square, so create an empty record
                   // and return it
-                  return createRecord({hexID: targetHex});
+                  return game.util.createRecord({hexID: targetHex});
           }
     };
     var oneMove = function (dir, record){
@@ -702,15 +680,20 @@ game.model = (function (){
           }
     };
     var requestHexInSquare = function (square){
-        console.log("requestHexInSquare");
-        console.log(square);
+        //console.log("requestHexInSquare");
+        //console.log(square);
         var records = db.query(function (r){ return matchGeography(r, square); });
         // console.log("records.length "+records.length);
 	// records.forEach(printRecord);
-        if(square.select){
+        if(square.select==='shift'){
             records.forEach(function(r){if(r.A){db.update({hexID:r.hexID,S:1})}
                                                });
         }
+        if(square.select==='control'){
+            records.forEach(function(r){if(r.A==0 && r.C===0 && r.K===0 && r.M===0){db.update({hexID:r.hexID,S:1})}
+                                               });
+        }
+	
         records.forEach(function (r){ radio('draw-hexagon').broadcast(r); });
     };
     var ping = function (){
