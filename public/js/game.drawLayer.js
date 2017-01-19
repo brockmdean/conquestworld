@@ -73,7 +73,6 @@ game.drawLayer = (function (){
     var keyQ = [];
     var keyInterval;
     var queenLocation;
-    var terain = [];
     var pingImgData;
     var allowRecenter=false;
     // ----------------- END MODULE SCOPE VARIABLES ---------------
@@ -127,14 +126,13 @@ game.drawLayer = (function (){
         radio('draw-leader-board').subscribe(drawLeaderBoard);
         radio('update-city-cost').subscribe(updateCityCost);
         radio('ping-data').subscribe(ping);
+        radio('center-on-queen').subscribe(centerBoard);
         queenLocation = game.model.createdKingLocation();
         pingImgData = cxt.createImageData(kPingRange * 2, kPingRange * 2);
-        centerBoard(queenLocation);
+        //centerBoard(queenLocation);
         // allow 4 moves per second.
         keyInterval = setInterval(executeKey, 250);
 
-        terain[1] = new Image();
-        terain[1].src = 'M1.jpg';
         // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
     };
     var centerBoard = function (location, redraw){
@@ -143,7 +141,7 @@ game.drawLayer = (function (){
         XcenterHex = location.x - (boardWidthInHex / 2);
         YcenterHex = location.y - (boardHeightInHex / 2);
         drawBoard();
-        // console.log("l.x "+location.x+" l.y "+location.y+" Xcenter "+Xcenter+" Ycenter "+Ycenter);
+         console.log("l.x "+location.x+" l.y "+location.y+" Xcenter "+Xcenter+" Ycenter "+Ycenter+" redraw "+redraw);
         if (redraw){
             radio('request-hex-in-square').broadcast({x      : XcenterHex,
                 y      : YcenterHex,
@@ -232,7 +230,7 @@ game.drawLayer = (function (){
         console.log('beginPan');
         // how multiple select might work
         console.log('shift key ' + e.shiftKey);
-        console.log('shift key ' + e.ctrlKey);
+        console.log('control key ' + e.ctrlKey);
         beginPanX = e.pageX - Xcenter;
         beginPanY = e.pageY - Ycenter;
         startXcenter = Xcenter;
@@ -250,10 +248,13 @@ game.drawLayer = (function (){
     };
     var pan = function (e, select){
         //console.log(select);
+	console.log("pan");
         var diffX = e.pageX - beginPanX;
         var diffY = e.pageY - beginPanY;
-        // console.log("pan x"+diffX+" Y:"+diffY);
+        console.log("pan x"+diffX+" Y:"+diffY);
+	console.log("pan moved x: "+(startXpoint - e.pageX)+" y: "+(startYpoint- e.pageY));
         if( select==='none' ){
+	    if(Math.abs(startXpoint - e.pageX)+Math.abs(startYpoint- e.pageY) < 3){return};
             Xcenter = diffX;
             Ycenter = diffY;
             drawBoard();
@@ -277,7 +278,7 @@ game.drawLayer = (function (){
     };
         
     var endPan = function (e){
-        // console.log("endpan");
+         console.log("endpan");
         if (Math.abs(startXcenter - Xcenter) > 3 || Math.abs(startYcenter - Ycenter) > 3){
             dontClick = true;
         }
@@ -516,7 +517,7 @@ game.drawLayer = (function (){
     
     // this is the main entry point from the model.
     var drawHexagon = function (record){
-        // console.log("drawLayer - id:"+record.hexID+" s:"+record.S+" v:"+record.V);
+         console.log("drawHexagon - id:"+record.hexID+" s:"+record.S+" v:"+record.V);
         //
 	cxt.save();
 	//cxt.globalCompositeOperation="destination-over";

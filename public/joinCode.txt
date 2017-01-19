@@ -1,0 +1,70 @@
+join
+    useInitCallback =true
+    ref('/ptr').once('value',joinStart)
+
+joinStart(s)
+    if s.val()
+        linkList = [
+	            {name: world   , path: '/world/'+s.val(), initCallBack : lDb.insert, liveCallback : null ,lastTransaction: true, storeLastTransaction:update},
+		    {name: terrain , path: '/terrain'       , initCallBack : lDb.insert, liveCallBack : userProcessRecordCallback,lastTransaction:false},
+		    {name: update  , path: '/updates'       , initCallBack : processRecord, liveCallBack : userProcessRecordCallback,lasttransaction:false}
+		    ]
+    else
+        linkList = [
+		    {name: terrain , path: '/terrain', initCallBack : lDb.insert, liveCallBack : userProcessRecordCallback,lastTransaction:false},
+		    {name: update  , path: '/updates', initCallBack : lDb.insert, liveCallBack : userProcessRecordCallback,lastTransaction:false}
+		    ]
+    initstartAt.world   = null
+    initstartAt.terrian = null
+    initstartat.update  = null
+    linkHead(linkList[0])
+
+linkHead(l)
+        listIndex = 0;
+	if initStartAt[linkList[linkIndex].name]
+	   ref(l.path).startat(initStartAt[linkList[linkIndex].name]).once('value',linkheadvalid)
+	else
+	   ref(l.path).once('value',linkHeadValid);
+
+linkHeadValid(s)
+	if(s.val())
+	    numChildren = s.numChildren();
+	    s.forEach(listItem)
+	else
+	    if listIndex !=== linkList.length-1
+	        listIndex++
+                linkHead(linkList[listIndex])
+	    else
+	       finalLink()
+
+
+listItem(s)
+	r = s.val();
+	numChildren--
+	if s.key === lastTrasaction && linkList[linkIdex].lastTransaction
+	    InitStartAt[linkList[linkIndex].storeLastTransaction]= s.val()  // needs to be stored on the update link
+	else
+	    initCallback(r);
+	
+	if(numChildren ===0)
+	    linkList[linkIdex].liveStartAt = s.key
+	    if listIndex !=== linkList.length-1
+	        listIndex++
+                linkHead(linkList[listIndex])
+	    else
+	       finalLink()
+		      
+finalLink
+	linkList.forEach( function(r)
+	   if r.liveCallback
+	      if r.LivestartAt 
+	         ref(r.path).startAt(r.liveStartAt).on('child_added',r.liveCallback)
+	      else
+	         ref(r.path).on('child_added',r.liveCallback)
+
+        ref('/users').on('child_added',processUserCallback)
+	enable update trigger
+	completeCallback()
+
+
+

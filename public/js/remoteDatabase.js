@@ -29,7 +29,7 @@ var remoteDatabase = (function (){
         var transactions = {};
         var outputQueue = [];
 	var lastTransaction;
-        var keyList = [];
+        var keyList = {};
 	var lDb ;
         //in ms
         var kMinTimeBetweenUpdates = 10000
@@ -74,14 +74,26 @@ var remoteDatabase = (function (){
 	var startUpdate = function(){
             
 	    console.log("starting update");
-            fbDatabase.ref(game.world()+'/UpdatedAt').orderByKey().limitToLast(1).once('child_added',function(s){
+            //was 'child_added' but that is not called if there are not children causing no updates to happen
+            fbDatabase.ref(game.world()+'/UpdatedAt').orderByKey().limitToLast(1).once('value',function(s){
                 var lastUpdatedAt = s.val();
                 //there may not have been an update yet
-                if(lastUpdatedAt === null ){lastUpdatedAt= 0;}
+                if(lastUpdatedAt === null ){
+                    lastUpdatedAt= 0;}
+                else{
+                    //updated is a list so get the last element.
+                    var numChildren=s.numChildren();
+                    console.log("num children"+numChildren);
+                    s.forEach(function(c){lastUpdatedAt = c.val()});
+                    //delete the list 
+                    fbDatabase.ref(game.world()+'/UpdatedAt').remove();
+                }
+                console.log("last updated at "+lastUpdatedAt);
                 if( (Date.now() - lastUpdatedAt) >  kMinTimeBetweenUpdates){doUpdate();}
-                else {console.log("there was an update "+(Date.now() - lastUpdatedAt)+" ago, skipping");
-                      fbDatabase.ref(game.world()+'/updater').remove();
-                     }
+                else {
+                    console.log("there was an update "+(Date.now() - lastUpdatedAt)+" ago, skipping");
+                    fbDatabase.ref(game.world()+'/updater').remove();
+                }
             });
 	};
         var doUpdate= function(){
@@ -91,8 +103,10 @@ var remoteDatabase = (function (){
 	    fbDatabase.ref(game.world()+'/ptr').once('value',getWorldPtr);            
         };
 	var getWorldPtr = function(snapshot){
+            console.log("getWorldPtr");
 	    _worldPtr = snapshot.val();
 	    //we are going to be writing to the other buffer, so flip it.
+            if(_worldPtr===null){_worldPtr='a';}else
 	    if(_worldPtr === "a"){_worldPtr='b'}else{_worldPtr = 'a'}
 	    //now get the current world state
 
@@ -100,6 +114,7 @@ var remoteDatabase = (function (){
 
 	    var records = lDb.query(function(r){ return r.A || r.C || r.K });
 	    //make a copy of each, to break the reference.
+            console.log("copy the db");
 	    var recordsCopy=[];
 	    records.forEach(function(r){ var cR = Object.assign({},r); recordsCopy.push(cR)});
 	    
@@ -114,15 +129,15 @@ var remoteDatabase = (function (){
 	    fbDatabase.ref(game.world()+'/ptr').set(_worldPtr);
 	    fbDatabase.ref(game.world()+'/updater').remove();
 	    //clean up the update list
-            var done =false;
-            while(! done){
-                if(keyList[0] === lastTransaction){
-                    done = true;
-                }else{
-                    fbDatabase.ref(game.world()+'/updates/'+keyList[0]).remove();
-                    keyList.shift();
-                }
-            }
+            //var done =false;
+            //while(! done){
+            //    if(keyList[0] === lastTransaction){
+            //        done = true;
+            //    }else{
+            //       fbDatabase.ref(game.world()+'/updates/'+keyList[0]).remove();
+            //        keyList.shift();
+            //    }
+            //}
 	}
         var initModule = function (update, user, worldState){
             fbDatabase = firebase.database();
@@ -149,6 +164,7 @@ var remoteDatabase = (function (){
         };
 
         var closeTransaction = function (){
+            return;
             var r = {};
             r.seq = writeSeq;
             r.tID = transactionID;
@@ -159,28 +175,62 @@ var remoteDatabase = (function (){
   // public
         var pushUpdate = function (r){
             _outgoingCount++;
-            r.seq = writeSeq;
-            r.tID = transactionID;
-            r.count = 0;
+            //r.seq = writeSeq;
+            //r.tID = transactionID;
+            //r.count = 0;
+            //console.log("pushupdate");
+            console.log(r);
             globalUpdatesRef.push(r);
             writeSeq++;
         };
   // end writer functions
 
-	// reader functions
-        var processRecord = function (snapshot){
+        var processRecord = function(s){
+            if (enableUpdateTrigger ){_incomingCount++;}
+	    var r = s.val();
+            var key = s.key;
+	    if(keyList[key]){console.log("duplicate key skipping "+key);return}
+	    else{keyList[key]=true;}
+	    console.log("process record "+s.key);
+	    
+            if(useInitCallback){
+                console.log("initCallBack");
+                lDb.insert(r);
+            }else{
+                console.log("processRecordCallBack");
+                processRecordCallback(Object.assign({},r));
+            } 
+            lastTransaction = key;
+            if(_incomingCount > kTransactionsBetweenUpdates){_incomingCount=0; setTimeout(updateWorldState,1)}
+        };
+
+	var insertSnapshot = function(s){
+	    var r=s.val();
+	    lDb.insert(r);
+	};
+        //removed this because 
+        //1. the tid , count and seq were ending up in the data base and I don't know how
+        //2 the bug the transactions were intended to fix , were not actually an out of
+        //order problem so this was just not working, and it think the length check 
+        //for complete was also broken it things actually came out of order. 
+        var processRecord2 = function (snapshot){
 	    // add this record to the transaction, or create one and add it.
 	    // if the record is complete
 	    // move the records in order to the output queue
 	    // and remove it from the transaction obj
-            _incomingCount++;
-            var r = snapshot.val();
-	    // console.log("processRecord");
-	    //console.log(r);
+            if (enableUpdateTrigger ){_incomingCount++;}
+            var r_fb = snapshot.val();
+	    console.log("processRecord");
+            console.log(snapshot.key);
+            var r=Object.assign({},r_fb);
+	    console.log(r);
             var tID = r.tID;
             var count = r.count;
             var seq = parseInt(r.seq);
 	    var key = snapshot.key;
+            delete r.tID;
+            delete r.count;
+            delete r.seq;
             keyList.push(key);
             if (!transactions.hasOwnProperty(tID)){
                 transactions[tID] = {count: -1, recs: []};
@@ -193,12 +243,18 @@ var remoteDatabase = (function (){
             if (transactions[tID]['recs'].length == transactions[tID]['count']){
 		// console.log("output transaction "+tID);
 		// $("#recieved").append("output transaction "+tID+"  count  "+transactions[tID]['count']+"<BR>");
-                transactions[tID]['recs'].forEach(function (r){
-                    delete r.tID;
-                    delete r.count;
-                    delete r.seq;
-		    // printRecord(r)
-                    processRecordCallback(r);
+                transactions[tID]['recs'].forEach(function (t){
+                    delete t.tID;
+                    delete t.count;
+                    delete t.seq;
+		    // printRecord(t)
+                    if(useInitCallback){
+                        console.log("initCallBack");
+                        lDb.insert(t);
+                    }else{
+                        console.log("processRecordCallBack");
+                        processRecordCallback(Object.assign({},t));
+                    }
                 });
 		// $("#recieved").append("<BR>");
                 delete transactions[tID];
@@ -213,6 +269,10 @@ var remoteDatabase = (function (){
         var pushUser = function (r){
             usersRef.push(r);
         };
+        var processTerrain = function(s){
+            var r = s.val();
+            processRecordCallback(r);
+        };
         var updateWorldCoordinate = function (r,ptr){
             var hexID = r.hexID;
             fbDatabase.ref(worldStateLocation +'/'+ ptr + '/' + hexID).set(r);
@@ -224,9 +284,110 @@ var remoteDatabase = (function (){
 		globalUpdatesRef.orderByKey().on('child_added',processRecord);
 	    }
 	};
+        //vars for the join chain of events, will get hoisted. 
+        var joinCompleteCallback;
+        var useInitCallback = false;
+        var linkIndex = 0;
+        var linkList =[];
+        var initStartAt={world:null, terrain:null, update:null};
+        var numChildren=0;
+        var enableUpdateTrigger =false;
+        //end vars for join chain of events
+        var join = function(completeCallback){
+            console.log("join");
+            joinCompleteCallback = completeCallback;
+            useInitCallback = true;
+            console.log(game.world()+"/ptr");
+            fbDatabase.ref(game.world()+"/ptr").once('value',joinStart);
+        };
+        var joinStart= function(s){
+            console.log("joinStart");
+            if (s.val()){ // if the ptr is not there this will be null
+                console.log("found ptr :"+s.val());
+                 linkList = [
+	            {name: 'world'   , path: '/world/'+s.val(), initCallback : insertSnapshot , liveCallback : null ,lastTransaction: true, storeLastTransaction:'update'},
+		    {name: 'terrain' , path: '/terrain'       , initCallback : insertSnapshot , liveCallback :  processTerrain ,lastTransaction:false},
+		    {name: 'update'  , path: '/updates'       , initCallback : processRecord  , liveCallback : processRecord   ,lasttransaction:false}
+		    ];
+            }else{
+                console.log("no ptr found, not loading a world");
+                 linkList = [
+		    {name: 'terrain' , path: '/terrain'       , initCallback : insertSnapshot , liveCallback : processTerrain ,lastTransaction:false},
+		    {name: 'update'  , path: '/updates'       , initCallback : processRecord  , liveCallback : processRecord  ,lasttransaction:false}
+		    ];
+            }
+            linkIndex=0;
+            linkHead();
+        };
+        var linkHead = function(){
+            console.log("linkHead "+"linkIndex "+linkIndex);
+            if(initStartAt[linkList[linkIndex].name]){
+                console.log("linkHead start at "+initStartAt[linkList[linkIndex].name]);
+                console.log("path "+game.world()+linkList[linkIndex].path);
+                fbDatabase.ref(game.world()+linkList[linkIndex].path).orderByKey().startAt(initStartAt[linkList[linkIndex].name]).once('value',linkHeadValid);                
+            }else{
+                console.log("linkHead start at begining");
+                fbDatabase.ref(game.world()+linkList[linkIndex].path).once('value',linkHeadValid);
+            }
+        };
+        var linkHeadValid = function(s){
+            console.log("linkHeadValid");
+            console.log("numChildren "+s.numChildren());
+            if(s.val()){
+                numChildren = s.numChildren();
+                s.forEach(listItem);
+            }else{
+                if(linkIndex === (linkList.length - 1)){
+                    finalLink();
+                }else{
+                    linkIndex++;
+                    linkHead();
+                }
+            }
+        };
+        var listItem = function(s) {
+            console.log("listItem");
+            var r = s.val();
+            console.log(r);
+            numChildren--;
+            if (s.key === 'lastTransaction' && linkList[linkIndex].lastTransaction){
+                initStartAt[linkList[linkIndex].storeLastTransaction]=s.val();
+		keyList[s.val()]=true;
+            }else{
+                linkList[linkIndex].initCallback(s);
+            }
+            if(numChildren === 0){
+                linkList[linkIndex].liveStartAt= s.key
+                if(linkIndex === (linkList.length - 1)){
+                    finalLink();
+                }else{
+                    linkIndex++;
+                    linkHead();
+                }
+            }
+        };
+        var finalLink = function(){
+            console.log("finalLink");
+            console.log(linkList);
+            linkList.forEach(function(l){
+                if (l.liveCallback){
+                    if (l.liveStartAt){
+                        console.log("live start at with key "+ l.liveStartAt);
+                        fbDatabase.ref(game.world()+l.path).orderByKey().startAt(l.liveStartAt).on('child_added',l.liveCallback);
+                    }else{
+                        console.log("live start at begining");
+                        fbDatabase.ref(game.world()+l.path).on('child_added',l.liveCallback);
+                    }
+                }
+            });
+            usersRef.on('child_added',processUser);
+            enableUpdateTrigger =true;
+            useInitCallback = false;
+            joinCompleteCallback();
+        };
+
         var readWorld = function (processCallback){
 	    processWorldCallback=processCallback;
-	    //get the semaphore
 	    console.log(worldStateLocation);
 	    //first read the world pointer to find the valid world in the double buffering scheme
 	    fbDatabase.ref(worldStateLocation+'/ptr').once('value',worldPtr);
@@ -305,7 +466,8 @@ var remoteDatabase = (function (){
             closeTransaction      : closeTransaction,
             bandwidth             : bandwidth,
 	    tryUpdate             : tryUpdate,
-	    setLDB                : setLDB
+	    setLDB                : setLDB,
+            join                  : join
         };
     };
     return {

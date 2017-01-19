@@ -29,6 +29,7 @@
          splashImage.src = 'splash.jpg';
      };
      var launchSplash = function (){
+         console.log("launch splash");
          sCanvas.canvas.height = 400;
          sCanvas.canvas.width = 600;
          sCanvas.drawImage(splashImage, 0, 0);
@@ -39,9 +40,9 @@
          displayTimer = setInterval(updateSplash, 100);
      };
      var landSplash = function (){
-         // console.log('land splash');
          // set a min time for the splash screen display
-         if (displayCount > 50){
+         if (displayCount > 25){
+             console.log('land splash');
              $('#myModal').css({'display': 'none'});
              clearInterval(displayTimer);
          } else { setTimeout(landSplash, 1000); }

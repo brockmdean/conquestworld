@@ -75,9 +75,9 @@ var game = (function () {
         //console.log(name);
         $('#pname').remove();
         $('#ConquestWorld').append("<canvas id='GameBoard' width=\"1200\" height=\"600\"></canvas>");
+        game.splash.launchSplash();
         game.model.initModule(name);
         game.drawLayer.initModule('#GameBoard' );
-        game.splash.launchSplash();
     };
     var initModule = function ( $container ) {
         _UID=uuid();

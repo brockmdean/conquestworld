@@ -27,9 +27,7 @@ database = (function(){
     };
 
     var joinWorld = function(completeCallback){
-//	remoteDb.tryUpdate();
-	remoteDb.readWorld(localDb.insert);
-	completeCallback();
+        remoteDb.join(completeCallback);
     };
     
     return {
@@ -42,6 +40,7 @@ database = (function(){
 	update            : localDb.update,
 	keyExists         : localDb.keyExists,
 	addIndex          : addIndex,
+        print             : localDb.print,
 
 	initModule            : remoteDb.initModule,
         openTransaction       : remoteDb.openTransaction,

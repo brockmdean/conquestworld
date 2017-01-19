@@ -65,14 +65,17 @@ simpleTable = (function () {
 			return I.f(r);
 		};
 		var insert = function(r){
+                    //console.log("insert");
+                    //printRecord(r.hexID,r);
+                    var nr=Object.assign({},r);
 			_count++;
-			if (!verifyRecord(r)){return false;}
+			if (!verifyRecord(nr)){return false;}
 			if(unique(r)){
 				//console.log("inserting a record");
-				_storage[r[key]]=(r);
+				_storage[nr[key]]=(nr);
 				_indexFunctions.forEach(function(I){
 					if( testIndex(I,r)){
-						_indexes[I.n][r[key]]=r;
+						_indexes[I.n][nr[key]]=r;
 					}
 				});
 				return true;
@@ -100,7 +103,11 @@ simpleTable = (function () {
 		};
 
 		var update = function(newR){
-			var currentR = _storage[newR[key]];
+                  //  console.log("update");
+                    
+		    var currentR = _storage[newR[key]];
+                    //printRecord(newR[key],currentR);
+                    //printRecord(newR[key],newR);
 			for(var k in newR){
 				currentR[k]=newR[k];
 			}
@@ -124,14 +131,15 @@ simpleTable = (function () {
 			return _storage.hasOwnProperty(k);
 		}
 	    var print = function(){
-		var string =JSON.stringify(_storage);
-		console.log("JSON string is "+string.length+" long");
-		var compressed = LZString.compressToUint8Array(string);
-		console.log("compressed is "+compressed.length+" long");
-			//for(var k in _storage){
-			//	printRecord(k,_storage[k]);
-			//};
-		}
+		//var string =JSON.stringify(_storage);
+		//console.log("JSON string is "+string.length+" long");
+		//var compressed = LZString.compressToUint8Array(string);
+		//console.log("compressed is "+compressed.length+" long");
+		for(var k in _storage){
+                    if(_storage[k].UID){
+			printRecord(k,_storage[k]);}
+		};
+	    }
 		var printRecord = function(key,record){
 			var s="record "+key+": ";
 			for(var k in record){

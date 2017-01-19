@@ -71,7 +71,7 @@ game.model = (function (){
     var sendSeq = 0;
     var initialKingLocation;
     var playerMap = {};
-
+    var updatedRecords=[];
     
     var dumpDatabase = function (){
           console.log('-------- dumpDatabase!!!!');
@@ -200,7 +200,7 @@ game.model = (function (){
                 //      console.log("update: failed insert, recieved duplicate update");return;
                 // }
         r = record;
-                // printRecord(r);
+                 printRecord(r);
                 // because the selected (S) field is sometimes passed through
                 // fb, here we can get selected tiles that we did not select.
                 // so clear the selected field if this tile is not ours.
@@ -211,13 +211,13 @@ game.model = (function (){
             // if the record does not exist this rule applies
             if (r.UID !== game.uid()){ r.S = 0; r.V = 0; } else { r.V = 1; }
 	    
-            // console.log("insert a new record from fb");
+             console.log("insert a new record from fb");
             // printRecord(r);
             db.insert(r);
         } else {
             if (r.UID !== game.uid()){ r.S = 0; }
             // if the record does exist, keep the local visibility
-            // console.log("update a record from fb")
+             console.log("update a record from fb")
             localR = db.query({hexID: r.hexID});
             localV = localR[0].V;
             // printRecord(localR[0]);
@@ -300,6 +300,7 @@ game.model = (function (){
                          r = db.query({hexID: x + '_' + y});
                          if (r.length == 0){ done = true; }
         } while (!done);
+        console.log('creating king at x:' + x + ' y:' + y);
 
         rDB.openTransaction();
         var r = game.util.createRecord({UID: game.uid(), 'hexID': x + '_' + y, K: 1, A: 5});
@@ -320,8 +321,9 @@ game.model = (function (){
 
                 // rDB.pushUpdate(m);
         rDB.closeTransaction();
-        console.log('creating king at x:' + x + ' y:' + y);
         initialKingLocation = {x: x, y: y};
+        radio('center-on-queen').broadcast(initialKingLocation,true);
+        radio('launch-complete').broadcast();
     };
     var createdKingLocation = function (){ return initialKingLocation; };
     var initializeWorld = function (){
@@ -478,30 +480,20 @@ game.model = (function (){
             return;
         }
         var records = db.matchSelectedArmies();
-        moveDb = simpleTable.create();
-        moveDb.uniqueKey('hexID');
-        moveDb.Fields(['hexID', 'x', 'y', 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
-        records.forEach(function (r){ moveDb.insert(r); });
-        records.forEach(function (record){ buildMoveDb(dir, record); });
-        records = moveDb.query(matchSelected);
-        // console.log("move database has "+records.length+" records");
-        // sort the records by direction of move, so that the leading edge goes first.
         // console.log("=======GeoSort "+dir);
         records.sort(geoSort(dir));
         // console.log("=======GeoSort "+dir);
         records.forEach(function (record){ oneMove(dir, record); });
-        var updatedRecords = moveDb.query(function (r){ return true; });
-        // console.log("updated records");
-        // updatedRecords.forEach(function(r){console.log(r)});
         rDB.openTransaction();
         updatedRecords.forEach(rDB.pushUpdate);
         rDB.closeTransaction();
+        updatedRecords=[];
     };
     var moveQueen = function (dir){
                 // var records = db.query(matchQueen);
         var record = db.matchQueen()[0];
                 // printRecord(record);
-        var targetRecord = getTarget(dir, record, false);
+        var targetRecord = getTarget(dir, record);
                 // printRecord(targetRecord);
                 // this record may not be in the db yet.
         db.insert(targetRecord);// insert will do nothing if the hexid already
@@ -522,175 +514,168 @@ game.model = (function (){
         rDB.pushUpdate(targetRecord);
         rDB.closeTransaction();
     };
-    var buildMoveDb = function (dir, record){
-          var target = getTarget(dir, record, false);
-          // console.log("buildMoveDb : dir "+dir+" r:");
-          // printRecord(target);
-          // console.log(record);
-          // console.log("buildMoveDb : T ");
-          // console.log(target);
-          moveDb.insert(target);
-    };
-    var getTarget = function (dir, record, useShadowDb){
-          var x = record.x;
-          var y = record.y;
-          var targetX = x, targetY = y;
-          var targetRecord;
-          if (dir == 'north'){
-      targetY--;
-          }
-          if (dir == 'south'){
-      targetY++;
-          }
-          if (dir == 'east'){
-      targetX++;
-          }
-          if (dir == 'west'){
-      targetX--;
-          }
-          var targetHex = targetX + '_' + targetY;
-          if (!useShadowDb){
-                  // console.log("use db");
-      targetRecord = db.query({hexID: targetHex});// there must be only one so..
-          } else {
-                  // console.log("use shadow db");
-                  targetRecord = moveDb.query({hexID: targetHex});
-          }
-          if (targetRecord.length == 1){
-                 var t = targetRecord[0];
-                 return t;
-          } else {
-                  // if the record is not in the db, it must be an empty square, so create an empty record
-                  // and return it
-                  return game.util.createRecord({hexID: targetHex});
-          }
+    var getTarget = function (dir, record){
+        var x = record.x;
+        var y = record.y;
+        var targetX = x, targetY = y;
+        var targetRecord;
+        if (dir == 'north'){
+            targetY--;
+        }
+        if (dir == 'south'){
+            targetY++;
+        }
+        if (dir == 'east'){
+            targetX++;
+        }
+        if (dir == 'west'){
+            targetX--;
+        }
+        var targetHex = targetX + '_' + targetY;
+        targetRecord = db.query({hexID: targetHex});// there must be only one so..
+        if (targetRecord.length == 1){
+            var t = targetRecord[0];
+            return t;
+        } else {
+            // if the record is not in the db, it must be an empty square, so create an empty record
+            // and return it
+            return game.util.createRecord({hexID: targetHex});
+        }
     };
     var oneMove = function (dir, record){
-          // rules
-          // 1. cant move onto mountains
-          // 2. cant move troops that arn't yours
-          // console.log("oneMove");
-          var a, r, totalTroops, c;
-          var targetRecord = getTarget(dir, record, true);
+        // rules
+        // 1. cant move onto mountains
+        // 2. cant move troops that arn't yours
+        // console.log("oneMove");
+        var a, r, totalTroops, c;
+        var targetRecord = getTarget(dir, record);
         var mUID, tUID;
-          // console.log("targetRecord");
-          // printRecord(targetRecord);
-          // console.log("record");
-          // printRecord(record);
-          if (targetRecord.M){ return; }// rule 1;
-          if (record.UID != game.uid()){ return; }// rule 2;
+        // console.log("targetRecord");
+        // printRecord(targetRecord);
+        // console.log("record");
+        // printRecord(record);
+        if (targetRecord.M){ return; }// rule 1;
+        if (record.UID != game.uid()){ return; }// rule 2;
         if (targetRecord.W){
             var wallStrength = targetRecord.W;
             var troops = record.A;
             if (troops > wallStrength){
                 var newTroops = troops - wallStrength;
-                moveDb.update({hexID: targetRecord.hexID, A: newTroops, UID: record.UID, W: 0, S: 1});
-                moveDb.update({hexID: record.hexID, A: 0, UID: 0, S: 0});
+                db.update({hexID: targetRecord.hexID, A: newTroops, UID: record.UID, W: 0, S: 1});
+                db.update({hexID: record.hexID, A: 0, UID: 0, S: 0});
             } else if (troops < wallStrength){
                 var newWall = wallStrength - troops;
-                moveDb.update({hexID: targetRecord.hexID, W: newWall});
-                moveDb.update({hexID: record.hexID, UID: 0, A: 0, S: 0});
+                db.update({hexID: targetRecord.hexID, W: newWall});
+                db.update({hexID: record.hexID, UID: 0, A: 0, S: 0});
             } else {
-                moveDb.update({hexID: targetRecord.hexID, W: 0, A: 0, UID: 0});
-                moveDb.update({hexID: record.hexID, W: 0, A: 0, UID: 0});
+                db.update({hexID: targetRecord.hexID, W: 0, A: 0, UID: 0});
+                db.update({hexID: record.hexID, W: 0, A: 0, UID: 0});
             }
+            updatedRecords.push(targetRecord);
+            updatedRecords.push(record);
             return;
         }
-          if (targetRecord.UID == record.UID){
-                  // we own this square so combine our armies up to the limit, remainder stays in the
-                  // orig hex
-                        // console.log("combining with our army");
-      totalTroops = targetRecord.A + record.A;
-                  a = totalTroops - kTroopLimit;
-
-                        // console.log("total troops :"+totalTroops+"a:"+a);
-                  if ((totalTroops) > kTroopLimit){
-                          console.log('exceeding troop limit');
-                          moveDb.update({hexID: record.hexID, A: a, S: 1});
-      moveDb.update({hexID: targetRecord.hexID, A: kTroopLimit, S: 1});
-                  } else {
-                                // console.log("comine all troops");
-                          // if there are no troops left, we don't own this square any longer
-                                // unless the square we are leaving is a city or king
-      if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
-      if (trailsOn){
-          moveDb.update({hexID: record.hexID, A: 1, UID: game.uid(), S: 0});
-          moveDb.update({hexID: targetRecord.hexID, A: totalTroops - 1, S: 1});
-      } else {
-                                moveDb.update({hexID: record.hexID, A: 0, UID: mUID, S: 0});
-          moveDb.update({hexID: targetRecord.hexID, A: totalTroops, S: 1});
-      }
-                  }
-      return;
-          }
-          if (record.UID !== targetRecord.UID && targetRecord.UID != 0){
-                  // console.log("attack");
-                  // this is an attack so ...
-                  if (targetRecord.A > record.A){
-                          // the attacked square wins the battle
-                          a = targetRecord.A - record.A;
-      if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
-                          moveDb.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
-                          moveDb.update({hexID: targetRecord.hexID, A: a, S: 0});
-                  }               else if (record.A > targetRecord.A){
-                                // we win the battle .
-                          a = record.A - targetRecord.A;
-                                // keep position of citys and queens if they are in the
-                                // square we are leaving to attack
-      if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
-      c = targetRecord.C;
-                                // if we were attacking a city it is destroyed
-      if (targetRecord.C){ c = 0; }
-                                // if we were attacking a queen it becomes a city;
-                                // and the queen dies.
-      if (targetRecord.K){
-          c = 1;
-      }
-                          moveDb.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
-                          moveDb.update({hexID: targetRecord.hexID, A: a, UID: game.uid(), S: 1, C: c, K: 0});
-                  } else {
-                                // this is a tie. the original owners stay put and all
-                                // armies are destroyed.
-      if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
-      if (targetRecord.C || targetRecord.K){ tUID = targetRecord.UID; } else { tUID = 0; }
-      moveDb.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
-                          moveDb.update({hexID: targetRecord.hexID, A: 0, S: 0, UID: tUID});
-  }
-      return;
-          }
-          if (targetRecord.UID == 0){
-                  // console.log("move to empty square");
-                  // the target is an empty square , move the troops and update the ownership
-      if (trailsOn && record.A > 1){
-          a = record.A - 1;
-          r = 1;
-          mUID = record.UID;
-      } else {
-          a = record.A;
-          r = 0;
-          mUID = 0;
-      }
-                  moveDb.update({hexID: targetRecord.hexID, UID: game.uid(), A: a, S: 1});
-                  if (record.K || record.C){
-                          // the king does not lose ownership when it has no troops
-                          moveDb.update({hexID: record.hexID, A: r, S: 0});
-                  } else {
-      moveDb.update({hexID: record.hexID, UID: mUID, A: r, S: 0});
-                  }
-          }
+        if (targetRecord.UID == record.UID){
+            // we own this square so combine our armies up to the limit, remainder stays in the
+            // orig hex
+            // console.log("combining with our army");
+	    totalTroops = targetRecord.A + record.A;
+            a = totalTroops - kTroopLimit;
+	    
+            // console.log("total troops :"+totalTroops+"a:"+a);
+            if ((totalTroops) > kTroopLimit){
+                console.log('exceeding troop limit');
+                db.update({hexID: record.hexID, A: a, S: 1});
+		db.update({hexID: targetRecord.hexID, A: kTroopLimit, S: 1});
+            } else {
+                // console.log("comine all troops");
+                // if there are no troops left, we don't own this square any longer
+                // unless the square we are leaving is a city or king
+		if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
+		if (trailsOn){
+		    db.update({hexID: record.hexID, A: 1, UID: game.uid(), S: 0});
+		    db.update({hexID: targetRecord.hexID, A: totalTroops - 1, S: 1});
+		} else {
+                    db.update({hexID: record.hexID, A: 0, UID: mUID, S: 0});
+		    db.update({hexID: targetRecord.hexID, A: totalTroops, S: 1});
+		}
+            }
+            updatedRecords.push(targetRecord);
+            updatedRecords.push(record);
+	    return;
+        }
+        if (record.UID !== targetRecord.UID && targetRecord.UID != 0){
+            // console.log("attack");
+            // this is an attack so ...
+            if (targetRecord.A > record.A){
+                // the attacked square wins the battle
+                a = targetRecord.A - record.A;
+		if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
+                db.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
+                db.update({hexID: targetRecord.hexID, A: a, S: 0});
+            }else if (record.A > targetRecord.A){
+                // we win the battle .
+                a = record.A - targetRecord.A;
+                // keep position of citys and queens if they are in the
+                // square we are leaving to attack
+		if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
+		c = targetRecord.C;
+                // if we were attacking a city it is destroyed
+		if (targetRecord.C){ c = 0; }
+                // if we were attacking a queen it becomes a city;
+                // and the queen dies.
+		if (targetRecord.K){
+		    c = 1;
+		}
+                db.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
+                db.update({hexID: targetRecord.hexID, A: a, UID: game.uid(), S: 1, C: c, K: 0});
+            } else {
+                // this is a tie. the original owners stay put and all
+                // armies are destroyed.
+		if (record.C || record.K){ mUID = record.UID; } else { mUID = 0; }
+		if (targetRecord.C || targetRecord.K){ tUID = targetRecord.UID; } else { tUID = 0; }
+		db.update({hexID: record.hexID, A: 0, S: 0, UID: mUID});
+                db.update({hexID: targetRecord.hexID, A: 0, S: 1, UID: tUID});
+	    }
+            updatedRecords.push(targetRecord);
+            updatedRecords.push(record);
+	    return;
+        }
+        if (targetRecord.UID == 0){
+            // console.log("move to empty square");
+            // the target is an empty square , move the troops and update the ownership
+	    if (trailsOn && record.A > 1){
+		a = record.A - 1;
+		r = 1;
+		mUID = record.UID;
+	    } else {
+		a = record.A;
+		r = 0;
+		mUID = 0;
+	    }
+            db.update({hexID: targetRecord.hexID, UID: game.uid(), A: a, S: 1});
+            if (record.K || record.C){
+                // the king does not lose ownership when it has no troops
+                db.update({hexID: record.hexID, A: r, S: 0});
+            } else {
+		db.update({hexID: record.hexID, UID: mUID, A: r, S: 0});
+            }
+        }
+        updatedRecords.push(targetRecord);
+        updatedRecords.push(record);
     };
     var requestHexInSquare = function (square){
-        //console.log("requestHexInSquare");
+        console.log("requestHexInSquare");
         //console.log(square);
         var records = db.query(function (r){ return matchGeography(r, square); });
         // console.log("records.length "+records.length);
 	// records.forEach(printRecord);
         if(square.select==='shift'){
-            records.forEach(function(r){if(r.A){db.update({hexID:r.hexID,S:1})}
+            records.forEach(function(r){if(r.A){db.update({hexID:r.hexID,S:1});}
                                                });
         }
         if(square.select==='control'){
-            records.forEach(function(r){if(r.A==0 && r.C===0 && r.K===0 && r.M===0){db.update({hexID:r.hexID,S:1})}
+            records.forEach(function(r){if(r.A==0 && r.C===0 && r.K===0 && r.M===0){db.update({hexID:r.hexID,S:1});}
                                                });
         }
 	
@@ -742,8 +727,8 @@ game.model = (function (){
     var initModule = function (playerName){
         if (!playerName){ playerName = 'anonymous'; };
         rDB.initModule({location: game.world() + '/updates', callback: update},
-                                {location: game.world() + '/users', callback: addPlayerNameToList},
-                                {location: game.world() + '/world'});
+                       {location: game.world() + '/users', callback: addPlayerNameToList},
+                       {location: game.world() + '/world'});
 
         rDB.pushUser({UID: game.uid(), name: playerName});
       // spawn the king
@@ -753,7 +738,7 @@ game.model = (function (){
 //	rDB.tryUpdate();
         rDB.joinWorld(createKing);
       // createKing();
-        updateIntervalID = setInterval(oneSecondUpdate, 1000);
+        //updateIntervalID = setInterval(oneSecondUpdate, 1000);
       // setTimeout(oneSecondUpdate,10000);
         radio('toggle-selection').subscribe(toggleSelection);
         radio('build-wall').subscribe(buildWalls);
@@ -769,7 +754,6 @@ game.model = (function (){
         // radio('debug-clear-fb').subscribe(clearFb);
         radio('stop-updates').subscribe(stopUpdates);
         radio('dump-transactions').subscribe(dumpTransactions);
-        radio('launch-complete').broadcast();
         return true;
     };
     var stopUpdates = function (){
