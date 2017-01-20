@@ -55,7 +55,7 @@ game.model = (function (){
     db.addIndex(matchSelected);
     var moveDb;
     var fbStorageRef;
-    var gold = 100;
+    var gold = 200;
     var kTroopLimit = 100;
     var kCityCost = 100;
     var kCityCostIncr = 100;
@@ -439,15 +439,16 @@ game.model = (function (){
           }
     };
     var buildWalls = function (){
-          var cities = db.matchSelected();
+        var cities = db.matchSelected();
         rDB.openTransaction();
         cities.forEach(buildWall);
         rDB.closeTransaction();
     };
     var buildWall = function (record, recordNumber){
-          if (record.A == 0 && record.W == 0 && record.K == 0 && record.M == 0 && gold > kWallCost){
+        if (record.A == 0 && record.K == 0 &&
+	    record.M == 0 && record.C == 0 && gold >= kWallCost){
                   gold -= kWallCost;
-                  rDB.pushUpdate(game.util.createRecord({'hexID': record.hexID, W: kWallStrength}));
+                  rDB.pushUpdate(game.util.createRecord({'hexID': record.hexID, W: kWallStrength+record.W}));
                   radio('draw-gold').broadcast(gold);
           }
     };
@@ -738,7 +739,7 @@ game.model = (function (){
 //	rDB.tryUpdate();
         rDB.joinWorld(createKing);
       // createKing();
-        //updateIntervalID = setInterval(oneSecondUpdate, 1000);
+        updateIntervalID = setInterval(oneSecondUpdate, 1000);
       // setTimeout(oneSecondUpdate,10000);
         radio('toggle-selection').subscribe(toggleSelection);
         radio('build-wall').subscribe(buildWalls);

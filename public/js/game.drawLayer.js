@@ -576,8 +576,11 @@ game.drawLayer = (function (){
             cxt.strokeText('C', point.x - 8, point.y + 7);
         }
         if (record.W){
+	    cxt.font = '18px serif';
             cxt.fillStyle = 'black';
-            cxt.fillText('W', point.x - 8, point.y + 7);
+            cxt.fillText('W', point.x - 8, point.y + 2);
+	    cxt.font = '10px serif';
+	    cxt.fillText(record.W,point.x-8,point.y+9);
         }
         if (record.M){
             drawTerain(record.M, point);
