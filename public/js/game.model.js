@@ -62,7 +62,7 @@ game.model = (function (){
     var kCityCostIncr = 100;
     var kWallCost = 50;
     var kWallStrength = 100;
-    var kPingCost = 1;
+    var kPingCost = 1000;
     var kPingRange = 100;
     var kPingRangeSquared = kPingRange * kPingRange;
     var trailsOn = false;
@@ -655,7 +655,7 @@ game.model = (function (){
 	    return; }
         //console.log('ping origin ' + HexLib.hexToId(h));
         var pingData = createPingData(h);
-        //gold = 0;// kPingCost;
+        gold = 0;// kPingCost;
         radio('draw-gold').broadcast(gold);
         radio('ping-data').broadcast(pingData);
     };
