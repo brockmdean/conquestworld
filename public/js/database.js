@@ -12,7 +12,7 @@ database = (function(){
     "use strict";
     var localDb = simpleTable.create();
     localDb.uniqueKey('hexID');
-    localDb.Fields(['hexID', 'x', 'y', 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
+    localDb.Fields(['hexID', 'h' , 'UID', 'K', 'C', 'W', 'A', 'S', 'V', 'M']);
     var updatesDb = simpleTable.create();
     updatesDb.uniqueKey('ID');
     updatesDb.Fields(['ID', 'date', 'r', 'seq', 'sendseq']);

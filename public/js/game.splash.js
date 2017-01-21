@@ -55,6 +55,7 @@
              //console.log('clear run');
              sCanvas.clearRect(5, 375, 595, 10);
          }
+         if(displayCount > 25){landSplash();}
          sCanvas.fillStyle = 'black';
          sCanvas.fillRect(xStart, 375, 35, 10);
      };

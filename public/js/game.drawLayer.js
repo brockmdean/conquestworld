@@ -10,9 +10,10 @@
 game.drawLayer = (function (){
     'use strict';
     // ---------------- BEGIN MODULE SCOPE VARIABLES --------------
+    var size = 15;
+    var layout = HexLib.Layout(HexLib.layout_flat,{x:size,y:size},{x:0,y:0});
     var canvasImage;
     var numberOfSides = 6;
-    var size = 15;
     // Xcenter and Ycenter are in pixels
     // also it is actually the location of the
     // top left corner of the screen.
@@ -31,6 +32,8 @@ game.drawLayer = (function (){
     var kPingRange = 100;
     var boardWidth = 1200;
     var boardHeight = 600;
+    var pingLayout = HexLib.Layout(HexLib.layout_flat,{x:.5,y:.5},{x:boardWidth - 200,y:boardHeight-200});
+    var pingFrameLayout;
     var boardWidthInHex = 52;
     var boardHeightInHex = 24;
     var cityCost = 1;
@@ -72,8 +75,7 @@ game.drawLayer = (function (){
                            {UID: 'uioppoip', name: 'sandy', score: 6}];
     var keyQ = [];
     var keyInterval;
-    var queenLocation;
-    var pingImgData;
+    var pingImgData=[];
     var allowRecenter=false;
     // ----------------- END MODULE SCOPE VARIABLES ---------------
 
@@ -111,6 +113,9 @@ game.drawLayer = (function (){
         console.log('window width ' + $(window).width());
         boardWidth = window.innerWidth - 30;
         boardHeight = window.innerHeight - 30;
+	pingFrameLayout = HexLib.Layout(HexLib.layout_flat,{x:95,y:95},{x:-1*(boardWidth-95),y:-1*(boardHeight-(Math.sqrt(3)*95/2))});
+	pingLayout.origin.x = boardWidth - 200;
+	pingLayout.origin.y = boardHeight - 200;
         boardWidthInHex = hPxToHex(boardWidth);
         boardHeightInHex = vPxToHex(boardHeight);
         document.getElementById('GameBoard').width = boardWidth;
@@ -127,55 +132,78 @@ game.drawLayer = (function (){
         radio('update-city-cost').subscribe(updateCityCost);
         radio('ping-data').subscribe(ping);
         radio('center-on-queen').subscribe(centerBoard);
-        queenLocation = game.model.createdKingLocation();
-        pingImgData = cxt.createImageData(kPingRange * 2, kPingRange * 2);
+        pingImgData =[];// cxt.createImageData(kPingRange * 2, kPingRange * 2);
         //centerBoard(queenLocation);
         // allow 4 moves per second.
         keyInterval = setInterval(executeKey, 250);
 
         // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
     };
-    var centerBoard = function (location, redraw){
-        Ycenter = (location.y - Math.floor(boardHeightInHex * 0.5)) * (size * Math.sqrt(3)) * -1;
-        Xcenter = (location.x - Math.floor(boardWidthInHex * 0.5)) * (size * 1.5) * -1;
-        XcenterHex = location.x - (boardWidthInHex / 2);
-        YcenterHex = location.y - (boardHeightInHex / 2);
+    var centerBoardOnQueen = function(){
+	var h = game.model.queenLocation();
+	centerBoard(h,true);
+    };
+    var centerBoard = function (h, redraw){
+        //console.log("centerBoard");
+        var newCenter = HexLib.hex_to_pixel(layout,h);
+        layout.origin.x = newCenter.x - boardWidth/2;
+        layout.origin.y = newCenter.y - boardHeight/2;
+        //console.log(h);
+        //console.log("boardWidth: "+boardWidth+" boardHeight "+boardHeight);
+        //console.log(newCenter);
+        //console.log(layout);
+//        Ycenter = (location.y - Math.floor(boardHeightInHex * 0.5)) * (size * Math.sqrt(3)) * -1;
+//        Xcenter = (location.x - Math.floor(boardWidthInHex * 0.5)) * (size * 1.5) * -1;
+//        XcenterHex = location.x - (boardWidthInHex / 2);
+//        YcenterHex = location.y - (boardHeightInHex / 2);
         drawBoard();
-         console.log("l.x "+location.x+" l.y "+location.y+" Xcenter "+Xcenter+" Ycenter "+Ycenter+" redraw "+redraw);
         if (redraw){
-            radio('request-hex-in-square').broadcast({x      : XcenterHex,
-                y      : YcenterHex,
-                width  : boardWidthInHex,
-                height : boardHeightInHex});
+            radio('request-hex-in-square').broadcast({
+                x      : layout.origin.x,
+                y      : layout.origin.y,
+                width  : boardWidth,
+                height : boardHeight});
         }
     };
     var ping = function (data){
-        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
-        var pd = pingImgData.data;
+	pingImgData = data;
+	//console.log("ping");
+//        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
+//        var pd = pingImgData.data;
         // console.log(pingImgData.data.length);
         // console.log(data);
-        data.forEach(function (d){
-            // console.log('point ' + d.x + ' ' + d.y);
-            for (var i = 0; i < 2; i++){
-                for (var j = 0; j < 2; j++){
-                    if (d.v === 1){ // we are red
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4] = 255;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 1] = 0;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 2] = 0;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 3] = 255;
-                    } else { // they are black
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4] = 0;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 1] = 0;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 2] = 0;
-                        pd[(d.y + i) * pingImgData.width * 4 + (d.x + j) * 4 + 3] = 255;
-                    }
-                }
-            }
-        });
         drawPingMap();
+    };
+    var drawPingPoint = function (d){
+//	console.log("drawPingPoint");
+//	console.log("q:"+d.q+" r:"+d.r+" s:"+d.s);
+	var p = HexLib.hex_to_pixel(pingLayout,d);
+//	console.log("x:"+p.x+" y:"+p.y);
+	cxt.save();
+	if(d.UID == game.uid()){ cxt.fillStyle='red';}
+	else{	cxt.fillStyle='green';}
+	cxt.fillRect(Math.round(p.x+pingLayout.origin.x),Math.round(p.y+pingLayout.origin.y),2,2);
+	cxt.restore();
     };
     var drawPingMap = function (){
 	//console.log("drawPingMap");
+	var pingCenter = HexLib.hex_to_pixel_windowed(pingFrameLayout,HexLib.Hex(0,0,0));
+	//console.log("PingCenter x:"+pingCenter.x+" y:"+pingCenter.y);
+	pingLayout.origin=pingCenter;
+	var c = HexLib.polygon_corners(pingFrameLayout,HexLib.Hex(0,0,0));
+	cxt.save();
+	cxt.beginPath();
+	cxt.fillStyle='white';
+	c.forEach(function(v){
+	    //console.log("x:"+v.x+" y:"+v.y);
+	    cxt.lineTo(v.x,v.y);
+	});
+	cxt.fill();
+	pingImgData.forEach(function (d){
+            // console.log('point ' + d.x + ' ' + d.y);
+	    drawPingPoint(d);
+        });
+	return;
         cxt.putImageData(pingImgData, boardWidth - kPingRange * 2, boardHeight - kPingRange * 2);
         cxt.fillStyle = 'black';
         cxt.beginPath();
@@ -200,7 +228,7 @@ game.drawLayer = (function (){
         cxt.fill();
     };
     var drawLosingMessage = function (){
-        console.log('loosing message');
+        //console.log('loosing message');
         cxt.clearRect(300, 150, 600, 300);
 
         var img = new Image();
@@ -227,15 +255,16 @@ game.drawLayer = (function (){
         drawPingMap();
     };
     var beginPan = function (e){
-        console.log('beginPan');
+        //console.log('beginPan');
         // how multiple select might work
-        console.log('shift key ' + e.shiftKey);
-        console.log('control key ' + e.ctrlKey);
-        beginPanX = e.pageX - Xcenter;
-        beginPanY = e.pageY - Ycenter;
-        startXcenter = Xcenter;
-        startYcenter = Ycenter;
-        startXpoint= e.pageX ;
+        //console.log('shift key ' + e.shiftKey);
+        //console.log('control key ' + e.ctrlKey);
+        beginPanX = e.pageX ;
+        beginPanY = e.pageY ;
+	//console.log("beginx: "+beginPanX+" beginy: "+beginPanY);
+        startXcenter = layout.origin.x;
+        startYcenter = layout.origin.y;
+        startXpoint= e.pageX;
         startYpoint= e.pageY;
 	select='none';
 	if(e.shiftKey){select='shift';}
@@ -248,15 +277,19 @@ game.drawLayer = (function (){
     };
     var pan = function (e, select){
         //console.log(select);
-	console.log("pan");
-        var diffX = e.pageX - beginPanX;
-        var diffY = e.pageY - beginPanY;
-        console.log("pan x"+diffX+" Y:"+diffY);
-	console.log("pan moved x: "+(startXpoint - e.pageX)+" y: "+(startYpoint- e.pageY));
+	//console.log("pan");
+        var diffX = beginPanX - e.pageX;// - beginPanX;
+        var diffY = beginPanY - e.pageY;// - beginPanY;
+	beginPanX = e.pageX ;
+        beginPanY = e.pageY ;
+
+        //console.log("pan X:"+diffX+" Y:"+diffY);
+	//console.log("pan moved x: "+(startXpoint - e.pageX)+" y: "+(startYpoint- e.pageY));
+	//console.log("beginx: "+beginPanX+" beginy: "+beginPanY);
         if( select==='none' ){
-	    if(Math.abs(startXpoint - e.pageX)+Math.abs(startYpoint- e.pageY) < 3){return};
-            Xcenter = diffX;
-            Ycenter = diffY;
+	    if(Math.abs(startXpoint - e.pageX)+Math.abs(startYpoint- e.pageY) < 3){return;};
+	    layout.origin.x += diffX;
+	    layout.origin.y += diffY;
             drawBoard();
             // multiply by negative 1 ,  because the x and y center points
             // are how far the window has moved ,  so when you drag the
@@ -265,10 +298,10 @@ game.drawLayer = (function (){
             YcenterHex = vPxToHex(Ycenter) * -1;
             XcenterHex = hPxToHex(Xcenter) * -1;
             // console.log("Xcenter "+ Xcenter + " Ycenter "+Ycenter);
-            radio('request-hex-in-square').broadcast({x      : XcenterHex,
-                                                      y      : YcenterHex,
-                                                      width  : boardWidthInHex,
-                                                      height : boardHeightInHex,
+            radio('request-hex-in-square').broadcast({x      : layout.origin.x,
+                                                      y      : layout.origin.y,
+                                                      width  : boardWidth,
+                                                      height : boardHeight,
                                                       select : 'none'});
         }else{
             cxt.putImageData(canvasImage,0,0);
@@ -278,23 +311,23 @@ game.drawLayer = (function (){
     };
         
     var endPan = function (e){
-         console.log("endpan");
-        if (Math.abs(startXcenter - Xcenter) > 3 || Math.abs(startYcenter - Ycenter) > 3){
+         //console.log("endpan");
+        if (Math.abs(startXcenter - layout.origin.x) > 3 || Math.abs(startYcenter - layout.origin.y) > 3){
             dontClick = true;
         }
         $('#GameBoard').off('mousemove');
         if(select === 'shift' || select === 'control'){
             cxt.putImageData(canvasImage,0,0);
-	    var startPoint =findHex({pageX:startXpoint, pageY:startYpoint});
-            var startXInHex = hPxToHex(startXpoint);
-            var startYInHex = vPxToHex(startYpoint);
-	    var endPoint = findHex(e);
-            var endXInHex   = hPxToHex(Math.abs(startXpoint-e.pageX));
-            var endYInHex   = vPxToHex(Math.abs(startYpoint-e.pageY));
-            radio('request-hex-in-square').broadcast({x      : startPoint.x,
-                                                      y      : startPoint.y,
-                                                      width  : Math.abs(startPoint.x-endPoint.x),
-                                                      height : Math.abs(startPoint.y-endPoint.y),
+//	    var startPoint =findHex({pageX:startXpoint, pageY:startYpoint});
+ //           var startXInHex = hPxToHex(startXpoint);
+//            var startYInHex = vPxToHex(startYpoint);
+//	    var endPoint = findHex(e);
+//            var endXInHex   = hPxToHex(Math.abs(startXpoint-e.pageX));
+//            var endYInHex   = vPxToHex(Math.abs(startYpoint-e.pageY));
+            radio('request-hex-in-square').broadcast({x      : startXpoint+layout.origin.x,
+                                                      y      : startYpoint+layout.origin.y,
+                                                      width  : Math.abs(startXpoint-e.pageX),
+                                                      height : Math.abs(startYpoint-e.pageY),
                                                       select : select});
             
         }
@@ -310,20 +343,24 @@ game.drawLayer = (function (){
         if (key === 's'){ radio('move').broadcast('south'); }
         if (key === 'a'){ radio('move').broadcast('west'); }
         if (key === 'd'){ radio('move').broadcast('east'); }
+        if (key === 'q'){ radio('move').broadcast('up'); }
+        if (key === 'e'){ radio('move').broadcast('down'); }
     };
     var resolveKey = function (e){
         //  console.log("kepress :"+e.key);
-        // console.log("e : "+e.which);
+         console.log("e : "+e.which);
         if (e.key === 'w' || e.which === 38){ if (keyQ.length === 0){ keyQ.push('w'); allowRecenter = true;} }
         if (e.key === 's' || e.which === 40){ if (keyQ.length === 0){ keyQ.push('s'); allowRecenter = true;} }
         if (e.key === 'a' || e.which === 37){ if (keyQ.length === 0){ keyQ.push('a'); allowRecenter = true;} }
-        if (e.key === 'd' || e.which === 39){ if (keyQ.length === 0){ keyQ.push('d'); allowRecenter = true;} }
+        if (e.key === 'd'){ if (keyQ.length === 0){ keyQ.push('d'); allowRecenter = true;} }
+        if (e.key === 'q' ){ if (keyQ.length === 0){ keyQ.push('q'); allowRecenter = true;} }
+        if (e.key === 'e'  || e.which === 39){ if (keyQ.length === 0){ keyQ.push('e'); allowRecenter = true;} }
         if (e.key === '1'){ buildCity(); }
         if (e.key === '2'){ buildWall(); }
-        // if(e.key==='3'){toggleTrails();}
+        if(e.key==='3'){toggleTrails();}
         if (e.key === '4'){ toggleQueen(); }
-        if (e.key === 'q'){ radio('clear-selection').broadcast(); }
-        if (e.key === 'e'){ centerBoard(queenLocation, true); }
+        if (e.key === 'c'){ radio('clear-selection').broadcast(); }
+        if (e.key === 'x'){ centerBoardOnQueen(); }
         if (e.key === 'p'){ radio('ping').broadcast(); }
         // debug keystrokes
         if (e.key === ';'){ radio('dump-database').broadcast(); }
@@ -352,7 +389,7 @@ game.drawLayer = (function (){
         }
         if (canvasCords.x > trails.x && canvasCords.x < (trails.x + trails.width) &&
            canvasCords.y > trails.y && canvasCords.y < (trails.y + trails.width)){
-            // toggleTrails();
+            toggleTrails();
             return;
         }
         if (canvasCords.x > queen.x && canvasCords.x < (queen.x + queen.width) &&
@@ -366,8 +403,10 @@ game.drawLayer = (function (){
             return;
         }
         var translatedE = {};
-        var r = findHex(e);
-        radio('toggle-selection').broadcast({hexID: r.hexID});
+        var h = findHex(e);
+        console.log("find hex : "+HexLib.hexToId(h));
+        
+        radio('toggle-selection').broadcast({hexID: HexLib.hexToId(h)});
 	
     };
     var buildCity = function (){
@@ -494,21 +533,25 @@ game.drawLayer = (function (){
         drawPing();
     };
     var onScreen = function (record){
-        //       console.log("Xcenter "+XcenterHex+ " Ycenter "+YcenterHex);
-        //       console.log("recordx "+record.x+" recordY "+record.y);
-        if (record.x > XcenterHex && record.x < XcenterHex + boardWidthInHex &&
-           record.y > YcenterHex && record.y < YcenterHex + boardHeightInHex){
+        //console.log("onScreen origin x:"+layout.origin.x+ " y:"+layout.origin.y);
+        var h = record.h;
+        var point = HexLib.hex_to_pixel(layout,h);
+        //console.log("hex center x:" + point.x + " y:"+point.y);
+        if (point.x > layout.origin.x && point.x < layout.origin.x + boardWidth &&
+            point.y > layout.origin.y && point.y < layout.origin.y + boardHeight){
             return true;
         }
         return false;
     };
 
-    var distanceToEdge = function(point){
-	var dNorth = Math.abs(point.y - YcenterHex);
-	var dSouth = Math.abs(point.y - (YcenterHex + boardHeightInHex));
-	var dEast  = Math.abs(point.x - XcenterHex);
-	var dWest  = Math.abs(point.x - (XcenterHex + boardWidthInHex));
-        // console.log("at : "+point.x+"  "+point.y);
+    var distanceToEdge = function(record){
+	var h = record.h;
+	var point = HexLib.hex_to_pixel(layout,h);
+	var dNorth = Math.abs((point.y - layout.origin.y)/layout.size.y);
+	var dSouth = Math.abs((point.y - (layout.origin.y + boardHeight))/layout.size.y);
+	var dEast  = Math.abs((point.x - layout.origin.x)/layout.size.x);
+	var dWest  = Math.abs((point.x - (layout.origin.x + boardWidth)/layout.size.x));
+//         console.log("at : "+point.x+"  "+point.y);
         // console.log("xc:"+XcenterHex+" xwidth:"+boardWidthInHex+" yheight:"+boardHeightInHex+" yc:"+ YcenterHex);
         // console.log("dN:"+dNorth+" dS:"+dSouth+" dE:"+dEast+" dW:"+dWest);
 	return Math.min(dNorth,dSouth,dEast,dWest);
@@ -517,17 +560,17 @@ game.drawLayer = (function (){
     
     // this is the main entry point from the model.
     var drawHexagon = function (record){
-         console.log("drawHexagon - id:"+record.hexID+" s:"+record.S+" v:"+record.V);
+         //console.log("drawHexagon - id:"+record.hexID+" s:"+record.S+" v:"+record.V);
         //
+        //game.util.printRecord(record);
 	cxt.save();
 	//cxt.globalCompositeOperation="destination-over";
         var color;
-        var point = getPixelXyFromHexID(record.hexID);
+        if (!onScreen(record)){ return; }
         if (!record.V && !game.visibility()){
-            drawHexagonBackground(point.x, point.y, size, 'black');
+            drawHexagonBackground(record.h, 'black');
             return;
         }
-        if (!onScreen(record)){ return; }
         // console.log("Xcenter "+XcenterHex+ " Ycenter "+YcenterHex);
         // console.log("recordx "+record.x+" recordY "+record.y);
         // console.log("--------");
@@ -536,8 +579,8 @@ game.drawLayer = (function (){
             // to recenter, and if we are selected. 
             if(distanceToEdge(record) < 2 && allowRecenter && record.S){
                 allowRecenter=false;
-                console.log("Recentering");
-                centerBoard(record,true);
+                //console.log("Recentering");
+                centerBoard(record.h,true);
                 return;
             }
         }
@@ -556,16 +599,16 @@ game.drawLayer = (function (){
             color = 'white';
         }
         if (record.S){ color = 'pink'; }
-        drawHexagonBackground(point.x, point.y, size, color);
+        drawHexagonBackground(record.h, color);
 
-        //   drawHexagonBackground(point.x , point.y , size , 'white');
-        // }
+
         if (record.S === 1){
             color = 'red';
         } else {
             color = 'black';
         }
-        drawHexagonFrame(point.x, point.y, size, color);
+        drawHexagonFrame(record.h, color);
+        var point = HexLib.hex_to_pixel_windowed(layout,record.h);
         cxt.font = '22px serif';
         if (record.K){
             cxt.strokeStyle = 'grey';
@@ -583,9 +626,7 @@ game.drawLayer = (function (){
 	    cxt.fillText(record.W,point.x-8,point.y+9);
         }
         if (record.M){
-            drawTerain(record.M, point);
-            // cxt.fillStyle = 'black';
-            // cxt.fillText('M' , point.x-8 , point.y+7);
+            drawTerain(record.M,record.h);
         }
         if (record.A){
             cxt.font = '12px san-serif';
@@ -594,7 +635,8 @@ game.drawLayer = (function (){
         }
 	cxt.restore();
     };
-    var drawTerain = function (type, point){
+    var drawTerain = function (type, h){
+        var point = HexLib.hex_to_pixel(layout,h);
         if (type === 1){
             cxt.beginPath();
             cxt.moveTo(point.x - 7, point.y + 7);
@@ -602,38 +644,19 @@ game.drawLayer = (function (){
             cxt.lineTo(point.x + 7, point.y + 7);
             cxt.stroke();
         } else {
-            drawHexagonBackground(point.x, point.y, size, 'blue');
+            drawHexagonBackground(h, 'blue');
         }
     };
-    var getPixelXyFromHexID = function (hexID){
-        // convert from board xy to window xy
-        // TODO convert from board xy to window xy
-        var xy = hexID.split('_');
-        var point = {};
-        point.x = parseInt(xy[0]);
-        point.y = parseInt(xy[1]);
-        if (point.x % 2 === 0){
-            point.x = point.x * 1.5 * size;
-            point.y = point.y * Math.sqrt(3) * size;
-        } else {
-            point.x = point.x * r * Math.sqrt(3);
-            point.y = point.y * r * 2 + r;
-        }
-        point.x = point.x + Xcenter;
-        point.y = point.y + Ycenter;
-        return point;
-    };
-
-    var drawHexagonBackground = function (Xcenter, Ycenter, size, color){
-        // console.log("dhb->xc: "+Xcenter+" yc: "+Ycenter+" "+color);
+    var drawHexagonBackground = function (h, color){
+        //console.log("drawHexagonBackground");
         cxt.fillStyle = color;
         cxt.lineWidth = 1;
         cxt.beginPath();
-        cxt.moveTo(Xcenter + size * Math.cos(0), Ycenter + size * Math.sin(0));
 
-        for (var i = 1; i <= numberOfSides; i += 1){
-            cxt.lineTo(Xcenter + size * Math.cos(i * 2 * Math.PI / numberOfSides), Ycenter + size * Math.sin(i * 2 * Math.PI / numberOfSides));
-        }
+        var corners = HexLib.polygon_corners(layout,h);
+        corners.forEach(function(c){
+            cxt.lineTo(c.x,c.y);
+        });
         cxt.fill();
         //  uncommnent to show where the center of the hexagon is.
         // cxt.beginPath();
@@ -641,15 +664,13 @@ game.drawLayer = (function (){
         // cxt.stroke();
     };// drawHexagonbackground
 
-    var drawHexagonFrame = function (Xcenter, Ycenter, size, color){
+    var drawHexagonFrame = function ( h, color){
         // console.log("xc: "+Xcenter+" yc: "+Ycenter+" "+color);
         cxt.beginPath();
-        cxt.moveTo(Xcenter + size * Math.cos(0), Ycenter + size * Math.sin(0));
-
-        for (var i = 1; i <= numberOfSides; i += 1){
-            cxt.lineTo(Xcenter + size * Math.cos(i * 2 * Math.PI / numberOfSides), Ycenter + size * Math.sin(i * 2 * Math.PI / numberOfSides));
-        }
-
+        var corners = HexLib.polygon_corners(layout,h);
+        corners.forEach(function(c){
+            cxt.lineTo(c.x,c.y);
+        });
         cxt.strokeStyle = color;
         cxt.lineWidth = 1;
         cxt.stroke();
@@ -673,6 +694,8 @@ game.drawLayer = (function (){
             cxt.fillStyle = 'black';
             cxt.fillRect(0, 0, boardWidth, boardHeight);
         }
+        return;
+        ////// unreachable !!!!
         var yStepStart = Math.ceil(Ycenter / (size * Math.sqrt(3))) * -1;
         var xStepStart = Math.ceil(Xcenter / (size * 3)) * -1;
 
@@ -691,52 +714,16 @@ game.drawLayer = (function (){
         var offset = $('#GameBoard').offset();
         var found = false;
 	var translatedE={};
-	translatedE.pageX = e.pageX - Xcenter;
-        translatedE.pageY = e.pageY - Ycenter;
-        console.log('e.x ' + e.pageX + ' e.y ' + e.pageY + ' xc ' + Xcenter + ' yc ' + Ycenter + ' t.x ' + translatedE.pageX + ' t.y ' + translatedE.pageY);
-
-        var boardx = Math.round((translatedE.pageX - offset.left) / (3 * size));
-        var boardy = Math.round((translatedE.pageY - offset.top) / (2 * r));
-        var boardxInPx = boardx * 3 * size;
-        var boardyInPx = boardy * r * 2;
-        var d = distance(boardxInPx, boardyInPx, translatedE.pageX - offset.left, translatedE.pageY - offset.top);
-       // var boardyRaw;
-        if (d < r){
-            // uncomment to draw a dot in the selected square
-            // cxt.strokeStyle = 'black';
-            // cxt.beginPath();
-            // cxt.ellipse(boardxInPx ,  boardyInPx ,  1 ,  1 ,  0 ,  0 ,  2 * Math.PI);
-            // cxt.stroke();
-            console.log('-' + translatedE.pageX + ' ' + translatedE.pageY + '   ' + (boardx * 2) + ' ' + boardy + '   ' + boardxInPx + '  ' + boardyInPx + 'dist ' + d);
-            found = true;
-            boardx = boardx * 2;
-        } else {
-            boardx = Math.round((translatedE.pageX - offset.left) / (r * Math.sqrt(3)));
-            if (boardx % 2 === 0){ return; }
-            boardy = Math.floor((translatedE.pageY - offset.top) / (r * 2));
-            // boardyRaw = (translatedE.pageY - offset.top) / (r * 2);
-            boardxInPx = boardx * r * Math.sqrt(3);
-            boardyInPx = boardy * r * 2 + r;
-            d = distance(boardxInPx, boardyInPx, translatedE.pageX - offset.left, translatedE.pageY - offset.top);
-
-            // uncomment to draw a dot in the selected square
-            // console.log(translatedE.pageX+" "+(translatedE.pageY-offset.top)+"   "+boardx+" "+boardy+"  "+boardyRaw+"   "+boardxInPx+"  "+boardyInPx+"dist "+d);
-            // cxt.strokeStyle = 'red';
-            // cxt.beginPath();
-            // cxt.ellipse(boardxInPx ,  boardyInPx ,  1 ,  1 ,  0 ,  0 ,  2 * Math.PI);
-            // cxt.stroke();
-            found = true;
-        }
-        if (found){
-            // TODO convert window cord into board cords
-            var hexID = boardx + '_' + boardy;
-            console.log('hexID: ' + hexID);
-	    return {x:boardx,y:boardy,hexID:hexID};
-        }
+	translatedE.x = e.pageX - offset.left + layout.origin.x;
+        translatedE.y = e.pageY - offset.top  + layout.origin.y;
+        var h = HexLib.hex_round(HexLib.pixel_to_hex(layout,translatedE));
+        
+	return h;
     };// findHex
     //  return public methods
     return {
-        initModule: initModule
+        initModule: initModule,
+        layout : layout
     };
     // ------------------- END PUBLIC METHODS ---------------------
 }());

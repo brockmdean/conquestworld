@@ -44,28 +44,28 @@ var remoteDatabase = (function (){
 	var tryUpdate = function(){
 	    // Try to create a user for ada, but only if the user id 'ada' isn't
 	    // already taken
-	    console.log("tryUpdate");
-	    console.log(game.world());
+	    //console.log("tryUpdate");
+	    //console.log(game.world());
 	    var updaterRef = fbDatabase.ref(game.world()+'/updater');
 	    
 	    updaterRef.transaction(function(currentData) {
-		console.log("current data "+currentData);
+		//console.log("current data "+currentData);
 		if (currentData === null) {
-		    console.log("here");
+		    //console.log("here");
 		    return { name: game.uid()};
 		} else {
-		    console.log('someone alreay is updating');
+		    //console.log('someone alreay is updating');
 		    return; // Abort the transaction.
 		}
 	    }, function(error, committed, snapshot) {
 		if (error) {
-		    console.log('Transaction failed abnormally!', error);
+		    //console.log('Transaction failed abnormally!', error);
 		} else if (committed) {
 		    startUpdate();
 		} else {
-		    console.log('User ada added!');
+		    //console.log('User ada added!');
 		}
-		console.log("Ada's data: ", snapshot.val());
+		//console.log("Ada's data: ", snapshot.val());
 	    });
 	};
 	var updateWorldState = function(){
@@ -73,7 +73,7 @@ var remoteDatabase = (function (){
 	};
 	var startUpdate = function(){
             
-	    console.log("starting update");
+	    //console.log("starting update");
             //was 'child_added' but that is not called if there are not children causing no updates to happen
             fbDatabase.ref(game.world()+'/UpdatedAt').orderByKey().limitToLast(1).once('value',function(s){
                 var lastUpdatedAt = s.val();
@@ -83,27 +83,27 @@ var remoteDatabase = (function (){
                 else{
                     //updated is a list so get the last element.
                     var numChildren=s.numChildren();
-                    console.log("num children"+numChildren);
+                    //console.log("num children"+numChildren);
                     s.forEach(function(c){lastUpdatedAt = c.val()});
                     //delete the list 
                     fbDatabase.ref(game.world()+'/UpdatedAt').remove();
                 }
-                console.log("last updated at "+lastUpdatedAt);
+                //console.log("last updated at "+lastUpdatedAt);
                 if( (Date.now() - lastUpdatedAt) >  kMinTimeBetweenUpdates){doUpdate();}
                 else {
-                    console.log("there was an update "+(Date.now() - lastUpdatedAt)+" ago, skipping");
+                    //console.log("there was an update "+(Date.now() - lastUpdatedAt)+" ago, skipping");
                     fbDatabase.ref(game.world()+'/updater').remove();
                 }
             });
 	};
         var doUpdate= function(){
-            console.log("do Update");
+            //console.log("do Update");
             fbDatabase.ref(game.world()+'/UpdatedAt').push(Date.now());
 	    //first get the current world pointer
 	    fbDatabase.ref(game.world()+'/ptr').once('value',getWorldPtr);            
         };
 	var getWorldPtr = function(snapshot){
-            console.log("getWorldPtr");
+            //console.log("getWorldPtr");
 	    _worldPtr = snapshot.val();
 	    //we are going to be writing to the other buffer, so flip it.
             if(_worldPtr===null){_worldPtr='a';}else
@@ -114,7 +114,7 @@ var remoteDatabase = (function (){
 
 	    var records = lDb.query(function(r){ return r.A || r.C || r.K });
 	    //make a copy of each, to break the reference.
-            console.log("copy the db");
+            //console.log("copy the db");
 	    var recordsCopy=[];
 	    records.forEach(function(r){ var cR = Object.assign({},r); recordsCopy.push(cR)});
 	    
@@ -179,7 +179,7 @@ var remoteDatabase = (function (){
             //r.tID = transactionID;
             //r.count = 0;
             //console.log("pushupdate");
-            console.log(r);
+            //console.log(r);
             globalUpdatesRef.push(r);
             writeSeq++;
         };
@@ -189,15 +189,16 @@ var remoteDatabase = (function (){
             if (enableUpdateTrigger ){_incomingCount++;}
 	    var r = s.val();
             var key = s.key;
-	    if(keyList[key]){console.log("duplicate key skipping "+key);return}
+	    if(keyList[key]){//console.log("duplicate key skipping "+key);
+			     return}
 	    else{keyList[key]=true;}
-	    console.log("process record "+s.key);
+	    //console.log("process record "+s.key);
 	    
             if(useInitCallback){
-                console.log("initCallBack");
+                //console.log("initCallBack");
                 lDb.insert(r);
             }else{
-                console.log("processRecordCallBack");
+                //console.log("processRecordCallBack");
                 processRecordCallback(Object.assign({},r));
             } 
             lastTransaction = key;
@@ -220,10 +221,10 @@ var remoteDatabase = (function (){
 	    // and remove it from the transaction obj
             if (enableUpdateTrigger ){_incomingCount++;}
             var r_fb = snapshot.val();
-	    console.log("processRecord");
-            console.log(snapshot.key);
+	    //console.log("processRecord");
+            //console.log(snapshot.key);
             var r=Object.assign({},r_fb);
-	    console.log(r);
+	    //console.log(r);
             var tID = r.tID;
             var count = r.count;
             var seq = parseInt(r.seq);
@@ -249,10 +250,10 @@ var remoteDatabase = (function (){
                     delete t.seq;
 		    // printRecord(t)
                     if(useInitCallback){
-                        console.log("initCallBack");
+                        //console.log("initCallBack");
                         lDb.insert(t);
                     }else{
-                        console.log("processRecordCallBack");
+                        //console.log("processRecordCallBack");
                         processRecordCallback(Object.assign({},t));
                     }
                 });
@@ -294,23 +295,23 @@ var remoteDatabase = (function (){
         var enableUpdateTrigger =false;
         //end vars for join chain of events
         var join = function(completeCallback){
-            console.log("join");
+            //console.log("join");
             joinCompleteCallback = completeCallback;
             useInitCallback = true;
-            console.log(game.world()+"/ptr");
+            //console.log(game.world()+"/ptr");
             fbDatabase.ref(game.world()+"/ptr").once('value',joinStart);
         };
         var joinStart= function(s){
-            console.log("joinStart");
+            //console.log("joinStart");
             if (s.val()){ // if the ptr is not there this will be null
-                console.log("found ptr :"+s.val());
+                //console.log("found ptr :"+s.val());
                  linkList = [
 	            {name: 'world'   , path: '/world/'+s.val(), initCallback : insertSnapshot , liveCallback : null ,lastTransaction: true, storeLastTransaction:'update'},
 		    {name: 'terrain' , path: '/terrain'       , initCallback : insertSnapshot , liveCallback :  processTerrain ,lastTransaction:false},
 		    {name: 'update'  , path: '/updates'       , initCallback : processRecord  , liveCallback : processRecord   ,lasttransaction:false}
 		    ];
             }else{
-                console.log("no ptr found, not loading a world");
+                //console.log("no ptr found, not loading a world");
                  linkList = [
 		    {name: 'terrain' , path: '/terrain'       , initCallback : insertSnapshot , liveCallback : processTerrain ,lastTransaction:false},
 		    {name: 'update'  , path: '/updates'       , initCallback : processRecord  , liveCallback : processRecord  ,lasttransaction:false}
@@ -320,19 +321,19 @@ var remoteDatabase = (function (){
             linkHead();
         };
         var linkHead = function(){
-            console.log("linkHead "+"linkIndex "+linkIndex);
+            //console.log("linkHead "+"linkIndex "+linkIndex);
             if(initStartAt[linkList[linkIndex].name]){
-                console.log("linkHead start at "+initStartAt[linkList[linkIndex].name]);
-                console.log("path "+game.world()+linkList[linkIndex].path);
+                //console.log("linkHead start at "+initStartAt[linkList[linkIndex].name]);
+                //console.log("path "+game.world()+linkList[linkIndex].path);
                 fbDatabase.ref(game.world()+linkList[linkIndex].path).orderByKey().startAt(initStartAt[linkList[linkIndex].name]).once('value',linkHeadValid);                
             }else{
-                console.log("linkHead start at begining");
+                //console.log("linkHead start at begining");
                 fbDatabase.ref(game.world()+linkList[linkIndex].path).once('value',linkHeadValid);
             }
         };
         var linkHeadValid = function(s){
-            console.log("linkHeadValid");
-            console.log("numChildren "+s.numChildren());
+            //console.log("linkHeadValid");
+            //console.log("numChildren "+s.numChildren());
             if(s.val()){
                 numChildren = s.numChildren();
                 s.forEach(listItem);
@@ -346,9 +347,9 @@ var remoteDatabase = (function (){
             }
         };
         var listItem = function(s) {
-            console.log("listItem");
+            //console.log("listItem");
             var r = s.val();
-            console.log(r);
+            //console.log(r);
             numChildren--;
             if (s.key === 'lastTransaction' && linkList[linkIndex].lastTransaction){
                 initStartAt[linkList[linkIndex].storeLastTransaction]=s.val();
@@ -367,15 +368,15 @@ var remoteDatabase = (function (){
             }
         };
         var finalLink = function(){
-            console.log("finalLink");
-            console.log(linkList);
+            //console.log("finalLink");
+            //console.log(linkList);
             linkList.forEach(function(l){
                 if (l.liveCallback){
                     if (l.liveStartAt){
-                        console.log("live start at with key "+ l.liveStartAt);
+                        //console.log("live start at with key "+ l.liveStartAt);
                         fbDatabase.ref(game.world()+l.path).orderByKey().startAt(l.liveStartAt).on('child_added',l.liveCallback);
                     }else{
-                        console.log("live start at begining");
+                        //console.log("live start at begining");
                         fbDatabase.ref(game.world()+l.path).on('child_added',l.liveCallback);
                     }
                 }
@@ -388,7 +389,7 @@ var remoteDatabase = (function (){
 
         var readWorld = function (processCallback){
 	    processWorldCallback=processCallback;
-	    console.log(worldStateLocation);
+	    //console.log(worldStateLocation);
 	    //first read the world pointer to find the valid world in the double buffering scheme
 	    fbDatabase.ref(worldStateLocation+'/ptr').once('value',worldPtr);
 
@@ -413,23 +414,25 @@ var remoteDatabase = (function (){
         };
 	var processWorldNode = function(snapshot){
 	    worldStateNumChildren --;
-	    if(snapshot.key === "last"){console.log("last "+snapshot.val()); lastTransaction = snapshot.val(); return ;}
+	    if(snapshot.key === "last"){//console.log("last "+snapshot.val());
+		lastTransaction = snapshot.val();
+		return ;}
             processWorldCallback(r);
 	    if(worldStateNumChildren===0){
 		readTerrain();
 	    }
 	};
         var readTerrain = function(){
-            console.log("readTerrain");
+            //console.log("readTerrain");
             fbDatabase.ref(game.world()+'/terrain').limitToLast(10).once('value',terrain);
         };
         var terrain = function (snapshot){
             var numChildren = snapshot.numChildren();
             if(numChildren > 0 ){
-                console.log("reading terrain");
+                //console.log("reading terrain");
                 fbDatabase.ref(game.world()+'/terrain').on('child_added', processTerrain);
             }else{
-                console.log("generating terrain");
+                //console.log("generating terrain");
                 fbDatabase.ref(game.world()+'/terrain').on('child_added', processTerrain);
                 for (var i = 0; i < 1800; i++){
                     var x = game.util.getRandomIntInclusive(0, 300);

@@ -13,7 +13,7 @@
 
 var game = (function () {
   'use strict';
-  var _world="dev";
+  var _world="dev6";
   var _UID;
   var _visibility =false;
   var _debug=false;
@@ -21,15 +21,17 @@ var game = (function () {
                      '<img id ="playButton" src="play.jpg">'+
                      '<BR><BR><BR><BR><BR><BR>'+
                      'Guide <BR>'+
-                     'wasd : Move a selected army north, west,south,east.<BR>'+
-                     'arrow keys : Move a selected army north, west, south, east.<BR>.'+
+                     'Movement keys q,w,e,a,s,d will move selected armies in the 6 directions .<BR>'+
+                     'arrow keys : Move a selected armies in 4 of the 6 directions.<BR>.'+
                      '1 : Build a city, cost starts at 100 gold, current cost is displayed in 100s. or click "C" button.<BR>'+
                      '2 : Build a wall, costs 50 gold. walls take 100 troops to breach or click "W" button.<BR>'+
                      '4 : Enable Queen movement or click "Q" button.<BR>'+
-                     'q : Clear all selected armies.<BR>'+
+                     'c : Clear all selected armies.<BR>'+
                      'p : Send a radar ping and reveal all units within 100 hex. costs at least 1000.<BR>'+
-                     'e : Recenter the map on the Queen<BR>'+
-                     'Click to select  a tile. Shift click and drag for multiple select.<BR></span> ';
+                     'x : Recenter the map on the Queen<BR>'+
+                     'Click to select  a tile.<br>'+
+                     'Shift click and drag to select multiple armies.<BR>'+
+                     'Control click and drag to select multiple empty .<BR></span> ';
 
     var visibility = function(){return _visibility;};
     var world= function (w){

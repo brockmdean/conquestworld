@@ -28,20 +28,21 @@ game.model = (function (){
     var matchQueen = function (r){ return r.K && r.UID == game.uid(); };
     var decaySites = function (r){ return r.UID !== game.uid() && r.V; };
     var matchGeography = function (r, square){
+        var h;
+        var p;
         if (r.V){
-            if (square.x <= r.x && r.x <= square.x + square.width &&
-                           square.y <= r.y && r.y <= square.y + square.height){
-                                         return true;
-                                 }
+            p=HexLib.hex_to_pixel(game.drawLayer.layout,r.h);
+            if (square.x <= p.x && p.x <= square.x + square.width &&
+                square.y <= p.y && p.y <= square.y + square.height){
+                return true;
+            }
         }
         return false;
     };
-    var matchRange = function (r, point){
+    var matchRange = function (r, h){
         if (r.UID != 0){
-            var xdiff = r.x - point.x;
-            var ydiff = r.y - point.y;
-            var d = xdiff * xdiff + ydiff + ydiff;
-            if (d < kPingRangeSquared){ return true; }
+	    var d = HexLib.hex_distance(h, r.h);
+	    return d < kPingRange;
         }
         return false;
     };
@@ -61,7 +62,7 @@ game.model = (function (){
     var kCityCostIncr = 100;
     var kWallCost = 50;
     var kWallStrength = 100;
-    var kPingCost = 1000;
+    var kPingCost = 1;
     var kPingRange = 100;
     var kPingRangeSquared = kPingRange * kPingRange;
     var trailsOn = false;
@@ -78,70 +79,29 @@ game.model = (function (){
           db.print();
           console.log('end-------- dumpDatabase!!!!');
     };
-    var printRecord = function (record){
-          var s = 'record ';
-          for (var k in record){
-                  s = s + k + ' ' + record[k] + ' ';
-          }
-          console.log(s);
-    };
         // retrun an array of neighbors for the given hex
         // and put them in the db if they are not there.
     var findNeighbors = function (r){
-        var neighbors = [];
-        var neighborIDs = [];
-        var x, y;
-        var xy = r.hexID.split('_');
+        var neighborHexs = [];
+        var neighborIDs  = [];
+        var neighborRecords = [];
         var t;
-                // console.log("find neighbors of "+r.hexID);
-                // crazy , the - is being treated as a subtraction
-                // but the + is being treated as a string concatenation
-                // force the addition interpretation by using parseint.
-//TODO move the parsint calls to the top, so I don't have to make so many 
+        var dirs = Object.keys(HexLib.hex_directions);
+        dirs.forEach(function(d){
+            neighborHexs.push(HexLib.hex_neighbor(r.h,d));
+        });
 
-        x = xy[0] - 1;
-        y = xy[1];
-        neighborIDs.push(x + '_' + y);
-        x = parseInt(xy[0]) + 1;
-        y = xy[1];
-        neighborIDs.push(x + '_' + y);
-        x = xy[0];
-        y = xy[1] - 1;
-        neighborIDs.push(x + '_' + y);
-        x = xy[0];
-        y = parseInt(xy[1]) + 1;
-        neighborIDs.push(x + '_' + y);
-
-        if (parseInt(xy[0]) % 2 == 0){
-            x = parseInt(xy[0]) + 1;
-            y = parseInt(xy[1]) - 1;
-        } else {
-            x = parseInt(xy[0]) + 1;
-            y = parseInt(xy[1]) + 1;
-        }
-        neighborIDs.push(x + '_' + y);
-
-        if (parseInt(xy[0]) % 2 == 0){
-            x = parseInt(xy[0]) - 1;
-            y = parseInt(xy[1]) - 1;
-        } else {
-            x = parseInt(xy[0]) - 1;
-            y = parseInt(xy[1]) + 1;
-        }
-        neighborIDs.push(x + '_' + y);
-                // console.log("findneighbors!!");
-                // neighborIDs.forEach(function(r){console.log(r)});
-        for (var i = 0; i < neighborIDs.length; i++){
-            if (db.keyExists(neighborIDs[i])){
-                t = db.query({hexID: neighborIDs[i]});
-                neighbors.push(t[0]);
+        for (var i = 0; i < neighborHexs.length; i++){
+            if (db.keyExists(HexLib.hexToId(neighborHexs[i]))){
+                t = db.query({hexID: HexLib.hexToId(neighborHexs[i])});
+                neighborRecords.push(t[0]);
             } else {
-                t = game.util.createRecord({hexID: neighborIDs[i]});
-                neighbors.push(t);
+                t = game.util.createRecord({hexID: HexLib.hexToId(neighborHexs[i])});
+                neighborRecords.push(t);
                 db.insert(t);
             }
         }
-        return neighbors;
+        return neighborRecords;
     };
 
   // -------------------- END UTILITY METHODS -------------------
@@ -151,17 +111,17 @@ game.model = (function (){
         var records = db.query({'hexID': hexID});
         var record, selected;
         var newRecord;
-                // console.log("game.model received toggle-selection message"+data.hexID);
-                // console.log("count "+records.length);
+        // console.log("game.model received toggle-selection message"+data.hexID);
+        // console.log("count "+records.length);
         if (records.length == 0){
-                        // this is the only time the model will add a record to the db,
-                        // all other records are added in response to a update from firebase.
-                        // newRecord=game.util.createRecord({'hexID':hexID,S:1});
-                        // db.insert(newRecord);
-                        // radio('draw-hexagon').broadcast(newRecord);
+            // this is the only time the model will add a record to the db,
+            // all other records are added in response to a update from firebase.
+            // newRecord=game.util.createRecord({'hexID':hexID,S:1});
+            // db.insert(newRecord);
+            // radio('draw-hexagon').broadcast(newRecord);
         } else {
-                        // assert that there is only one record
-                        // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
+            // assert that there is only one record
+            // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
             record = records[0];
             if (!record.V){ return; }
             if (record.UID !== game.uid() && record.UID !== 0){ return; }
@@ -193,40 +153,40 @@ game.model = (function (){
         var queenR;
         var newOwner;
         var myCities;
-                // console.log("record id "+snapshot.key+" at "+record.date)
-                // if we have recieved this update before, dont do it again.
-                // radio('debug-transactions').broadcast({ID:snapshot.key,date:record.date,r:record.record});
-                // if(!updatesDb.insert({ID:snapshot.key,date:record.date,r:record.record,seq:seqNum++,sendseq:record.seq})){
-                //      console.log("update: failed insert, recieved duplicate update");return;
-                // }
+        // console.log("record id "+snapshot.key+" at "+record.date)
+        // if we have recieved this update before, dont do it again.
+        // radio('debug-transactions').broadcast({ID:snapshot.key,date:record.date,r:record.record});
+        // if(!updatesDb.insert({ID:snapshot.key,date:record.date,r:record.record,seq:seqNum++,sendseq:record.seq})){
+        //      console.log("update: failed insert, recieved duplicate update");return;
+        // }
         r = record;
-                 printRecord(r);
-                // because the selected (S) field is sometimes passed through
-                // fb, here we can get selected tiles that we did not select.
-                // so clear the selected field if this tile is not ours.
-                // and set the Visibility if the hex is ours
-
-                // printRecord(r);
+        //game.util.printRecord(r);
+        // because the selected (S) field is sometimes passed through
+        // fb, here we can get selected tiles that we did not select.
+        // so clear the selected field if this tile is not ours.
+        // and set the Visibility if the hex is ours
+        
+        // game.util.printRecord(r);
         if (!db.keyExists(r.hexID)){
             // if the record does not exist this rule applies
             if (r.UID !== game.uid()){ r.S = 0; r.V = 0; } else { r.V = 1; }
 	    
-             console.log("insert a new record from fb");
-            // printRecord(r);
+            // console.log("insert a new record from fb");
+            // game.util.printRecord(r);
             db.insert(r);
         } else {
             if (r.UID !== game.uid()){ r.S = 0; }
             // if the record does exist, keep the local visibility
-             console.log("update a record from fb")
+            // console.log("update a record from fb")
             localR = db.query({hexID: r.hexID});
             localV = localR[0].V;
-            // printRecord(localR[0]);
-            // printRecord(r);
+            // game.util.printRecord(localR[0]);
+            // game.util.printRecord(r);
             r.V = localV;
 	    
-            // printRecord(r);
+            // game.util.printRecord(r);
             // console.log("there are "+records.length+" records with "+r.hexID);
-            // printRecord(r);
+            // game.util.printRecord(r);
 	    
             // here we need to check for winning and loosing.
             // so get the current state of the hex.
@@ -234,7 +194,7 @@ game.model = (function (){
             // if it currently is K=1, our queen just died.
             queenR = db.query(matchQueen)[0];
             // console.log("queen R ");
-            // printRecord(queenR);
+            // game.util.printRecord(queenR);
             // BUG once the queen has been removed this causes errors
             // because teh queen cant be found on line 243
             if (queenR && r.hexID == queenR.hexID){ // we are updating the queen
@@ -265,9 +225,9 @@ game.model = (function (){
         if (r.UID == game.uid()){
             n = findNeighbors(r);
             // console.log("found these neighbors");
-            // n.forEach(printRecord);
+            //n.forEach(game.util.printRecord);
             n.forEach(function (_r){
-                // printRecord(_r);
+                // game.util.printRecord(_r);
                 db.update({hexID: _r.hexID, V: 1});
                 _r.V = 1;
                 radio('draw-hexagon').broadcast(_r);
@@ -293,17 +253,19 @@ game.model = (function (){
   //
     var createKing = function (){
         var done = false;
-        var x, y, r;
+        var x, y, z, r;
         do { // make sure we don't spawn on an occupied location.
-                 x = game.util.getRandomIntInclusive(5, 200);
-                 y = game.util.getRandomIntInclusive(5, 200);
-                         r = db.query({hexID: x + '_' + y});
-                         if (r.length == 0){ done = true; }
+            x = game.util.getRandomIntInclusive(5, 200);
+            y = game.util.getRandomIntInclusive(5, 200);
+            z = -x -y;        
+            r = db.query({hexID: x + '_' + y + '_' + z});
+            if (r.length == 0){ done = true; }
         } while (!done);
-        console.log('creating king at x:' + x + ' y:' + y);
-
+        //console.log('creating king at x:' + x + ' y:' + y + ' z:'+ z);
+        //console.log('ocnstraint x+y+z= 0 :'+ (x+y+z));
+        var h = HexLib.Hex(x,y,z);
         rDB.openTransaction();
-        var r = game.util.createRecord({UID: game.uid(), 'hexID': x + '_' + y, K: 1, A: 5});
+        var r = game.util.createRecord({UID: game.uid(), 'hexID': HexLib.hexToId(h), K: 1, A: 5, h :h});
         rDB.pushUpdate(r);
         //      for(var i =1; i<10;i++){
         //              r = game.util.createRecord({UID:"qwerqwef",'hexID':(x+i*10)+"_"+y,A:5});
@@ -321,11 +283,12 @@ game.model = (function (){
 
                 // rDB.pushUpdate(m);
         rDB.closeTransaction();
-        initialKingLocation = {x: x, y: y};
-        radio('center-on-queen').broadcast(initialKingLocation,true);
+        radio('center-on-queen').broadcast(h,true);
         radio('launch-complete').broadcast();
     };
-    var createdKingLocation = function (){ return initialKingLocation; };
+    var queenLocation = function (){ var rs= db.matchQueen();
+				     return rs[0].h
+				   };
     var initializeWorld = function (){
           // here we would download the db and send a bunch of messages to the drawlayser
           // TODO download the database
@@ -395,15 +358,15 @@ game.model = (function (){
     var visibilityDecay = function (){
                 // console.log("-----visibilityDecay")
         var potentialDecaySites = db.decaySites();
-                // potentialDecaySites.forEach(printRecord);
+                // potentialDecaySites.forEach(game.util.printRecord);
         potentialDecaySites.forEach(doDecay);
     };
     var doDecay = function (r){
                 // console.log('------doDecay');
-                // printRecord(r);
+                // game.util.printRecord(r);
                 // console.log("uid "+game.uid());
         var neighbors = findNeighbors(r);
-                // neighbors.forEach(printRecord);
+                // neighbors.forEach(game.util.printRecord);
         var found = false;
         for (var i = 0; i < neighbors.length; i++){
                         // if we find a neighbor that we own,then this hex does not decay
@@ -423,17 +386,17 @@ game.model = (function (){
           // console.log("found "+cities.length+" selected hexes");
     };
     var buildCity = function (record, recordNumber){
-          console.log('buildCity r:' + record.A + ' ' + record.W + ' ' + record.K + ' ' + record.M + ' ' + gold);
-        console.log('city cost ' + kCityCost);
-                // printRecord(record);
+        //  console.log('buildCity r:' + record.A + ' ' + record.W + ' ' + record.K + ' ' + record.M + ' ' + gold);
+        //console.log('city cost ' + kCityCost);
+                // game.util.printRecord(record);
           if (record.C == 0 && record.W == 0 && record.K == 0 && record.M == 0 && gold > kCityCost){
-                  console.log('empty and enough gold');
+                  //console.log('empty and enough gold');
                   gold -= kCityCost;
       kCityCost += kCityCostIncr;
       radio('update-city-cost').broadcast(kCityCost);
       record.C = 1;
       if (record.UID == 0){ record.UID = game.uid(); }
-                        // printRecord(record);
+                        // game.util.printRecord(record);
                   rDB.pushUpdate(record);
                   radio('draw-gold').broadcast(gold);
           }
@@ -453,18 +416,24 @@ game.model = (function (){
           }
     };
     var geoSort = function (dir){
-          if (dir == 'north'){
-              return function (a, b){ return a.y - b.y; };
-          }
-          if (dir == 'south'){
-      return function (a, b){ return b.y - a.y; };
-          }
-          if (dir == 'east'){
-                  return function (a, b){ return b.x - a.x; };
-          }
-          if (dir == 'west'){
-                  return function (a, b){ return a.x - b.x; };
-          }
+        if (dir == 'down'){
+            return function (a, b){ return b.h.q - a.h.q;};
+        }
+        if (dir == 'west'){
+            return function (a, b){ return  a.h.q - b.h.q;};
+        }
+        if (dir == 'up'){
+            return function (a, b){ return  a.h.q - b.h.q;};
+        }
+        if (dir == 'east'){
+            return function (a, b){ return  b.h.q - a.h.q;};
+        }
+        if (dir == 'north'){ 
+            return function(a,b){ return a.h.r - b.h.r;};
+        };
+        if (dir == 'south'){
+            return function(a,b){ return b.h.r - a.h.r;};
+        };
     };
     var toggleTrails = function (v){
         trailsOn = v;
@@ -493,9 +462,9 @@ game.model = (function (){
     var moveQueen = function (dir){
                 // var records = db.query(matchQueen);
         var record = db.matchQueen()[0];
-                // printRecord(record);
+                // game.util.printRecord(record);
         var targetRecord = getTarget(dir, record);
-                // printRecord(targetRecord);
+                // game.util.printRecord(targetRecord);
                 // this record may not be in the db yet.
         db.insert(targetRecord);// insert will do nothing if the hexid already
                 // exists in the db.
@@ -516,31 +485,15 @@ game.model = (function (){
         rDB.closeTransaction();
     };
     var getTarget = function (dir, record){
-        var x = record.x;
-        var y = record.y;
-        var targetX = x, targetY = y;
-        var targetRecord;
-        if (dir == 'north'){
-            targetY--;
-        }
-        if (dir == 'south'){
-            targetY++;
-        }
-        if (dir == 'east'){
-            targetX++;
-        }
-        if (dir == 'west'){
-            targetX--;
-        }
-        var targetHex = targetX + '_' + targetY;
-        targetRecord = db.query({hexID: targetHex});// there must be only one so..
+        var targetHex = HexLib.hex_neighbor(record.h,dir);
+        var targetRecord = db.query({hexID: HexLib.hexToId(targetHex)});// there must be only one so..
         if (targetRecord.length == 1){
             var t = targetRecord[0];
             return t;
         } else {
             // if the record is not in the db, it must be an empty square, so create an empty record
             // and return it
-            return game.util.createRecord({hexID: targetHex});
+            return game.util.createRecord({hexID: HexLib.hexToId(targetHex)});
         }
     };
     var oneMove = function (dir, record){
@@ -552,9 +505,9 @@ game.model = (function (){
         var targetRecord = getTarget(dir, record);
         var mUID, tUID;
         // console.log("targetRecord");
-        // printRecord(targetRecord);
+        // game.util.printRecord(targetRecord);
         // console.log("record");
-        // printRecord(record);
+        // game.util.printRecord(record);
         if (targetRecord.M){ return; }// rule 1;
         if (record.UID != game.uid()){ return; }// rule 2;
         if (targetRecord.W){
@@ -585,7 +538,7 @@ game.model = (function (){
 	    
             // console.log("total troops :"+totalTroops+"a:"+a);
             if ((totalTroops) > kTroopLimit){
-                console.log('exceeding troop limit');
+                //console.log('exceeding troop limit');
                 db.update({hexID: record.hexID, A: a, S: 1});
 		db.update({hexID: targetRecord.hexID, A: kTroopLimit, S: 1});
             } else {
@@ -645,9 +598,9 @@ game.model = (function (){
         if (targetRecord.UID == 0){
             // console.log("move to empty square");
             // the target is an empty square , move the troops and update the ownership
-	    if (trailsOn && record.A > 1){
-		a = record.A - 1;
-		r = 1;
+	    if (trailsOn && record.A > 10){
+		a = record.A - 10;
+		r = 10;
 		mUID = record.UID;
 	    } else {
 		a = record.A;
@@ -666,11 +619,11 @@ game.model = (function (){
         updatedRecords.push(record);
     };
     var requestHexInSquare = function (square){
-        console.log("requestHexInSquare");
+//        console.log("requestHexInSquare");
         //console.log(square);
         var records = db.query(function (r){ return matchGeography(r, square); });
-        // console.log("records.length "+records.length);
-	// records.forEach(printRecord);
+//        console.log("records.length "+records.length);
+//	records.forEach(game.util.printRecord);
         if(square.select==='shift'){
             records.forEach(function(r){if(r.A){db.update({hexID:r.hexID,S:1});}
                                                });
@@ -683,42 +636,45 @@ game.model = (function (){
         records.forEach(function (r){ radio('draw-hexagon').broadcast(r); });
     };
     var ping = function (){
-                // the ping originates for a selected army if there is only 1
-                // the ping originates from the queen if there are no selected armies
-                // else nothing happens.
-                // pings cost a lot.
-        if (gold < kPingCost){ return; }
-        var point = {};
+        // the ping originates for a selected army if there is only 1
+        // the ping originates from the queen if there are no selected armies
+        // else nothing happens.
+        // pings cost a lot.
+        if (gold < kPingCost){
+	    //TODO post a message explaining why not enough gold for a ping
+	    return; }
+        var h;
         var records = db.matchSelectedArmies();
         if (records.length == 1){
-            point = {x: records[0].x, y: records[0].y};
+            h = records[0].h;
         } else if (records.length == 0){
             records = db.matchQueen();
-            point = {x: records[0].x, y: records[0].y};
-        } else { return; }
-        console.log('ping origin ' + point.x + ' ' + point.y);
-        var pingData = createPingData(point);
-        gold = 0;// kPingCost;
+            h = records[0].h;
+        } else {
+	    //TODO explain that you can only have 0 or 1 army selected to origin the ping
+	    return; }
+        //console.log('ping origin ' + HexLib.hexToId(h));
+        var pingData = createPingData(h);
+        //gold = 0;// kPingCost;
         radio('draw-gold').broadcast(gold);
         radio('ping-data').broadcast(pingData);
     };
-    var createPingData = function (point){
-        var records = db.query(function (r){ return matchRange(r, point); });
+    var createPingData = function (h){
+        var records = db.query(function (r){ return matchRange(r, h); });
         var pingData = [];
-        var x, y;
+	var t , p;
+	//console.log("h "+h.q+" "+h.r+" "+h.s);
         records.forEach(function (r){
-                        // this record is owned by a us
-                        // TODO need to normalize teh xy to thecenter of the image.
-            x = parseInt(r.x) - point.x + kPingRange;
-            y = parseInt(r.y) - point.y + kPingRange;
-            if (r.UID == game.uid()){
-                pingData.push({x: x, y: y, v: 1});
-            } else {
-                                // owned by someone else
-                pingData.push({x: x, y: y, v: 2});
-            }
+	    //recenter the hexes around the ping source (h)
+	    t = r.h;
+	    t = HexLib.hex_subtract(t,h);
+	   // console.log("r "+r.h.q+" "+r.h.r+" "+r.h.s);
+	    //console.log("t "+t.q+" "+t.r+" "+t.s);
+	    t.UID=r.UID;
+	    pingData.push(t);
+	    
         });
-        console.log(pingData);
+        //console.log(pingData);
         return pingData;
     };
     var addPlayerNameToList = function (r){
@@ -771,7 +727,7 @@ game.model = (function (){
   // return public methods
     return {
         initModule          : initModule,
-        createdKingLocation : createdKingLocation
+        queenLocation : queenLocation
     };
   // ------------------- END PUBLIC METHODS ---------------------
 }());
