@@ -188,6 +188,7 @@ var remoteDatabase = (function (){
         var processRecord = function(s){
             if (enableUpdateTrigger ){_incomingCount++;}
 	    var r = s.val();
+	    game.util.printRecord(r);
             var key = s.key;
 	    if(keyList[key]){//console.log("duplicate key skipping "+key);
 			     return}
@@ -196,7 +197,7 @@ var remoteDatabase = (function (){
 	    
             if(useInitCallback){
                 //console.log("initCallBack");
-                lDb.insert(r);
+                lDb.insertOrUpdate(r);
             }else{
                 //console.log("processRecordCallBack");
                 processRecordCallback(Object.assign({},r));

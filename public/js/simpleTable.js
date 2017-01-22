@@ -64,26 +64,31 @@ simpleTable = (function () {
 		var testIndex = function(I,r){
 			return I.f(r);
 		};
-		var insert = function(r){
-                    //console.log("insert");
-                    //printRecord(r.hexID,r);
-                    var nr=Object.assign({},r);
-			_count++;
-			if (!verifyRecord(nr)){return false;}
-			if(unique(r)){
-				//console.log("inserting a record");
-				_storage[nr[key]]=(nr);
-				_indexFunctions.forEach(function(I){
-					if( testIndex(I,r)){
-						_indexes[I.n][nr[key]]=r;
-					}
-				});
-				return true;
-			}else
-			{
-				return false;
+	    var insert = function(r){
+                //console.log("insert");
+                //printRecord(r.hexID,r);
+                var nr=Object.assign({},r);
+		_count++;
+		if (!verifyRecord(nr)){return false;}
+		if(unique(r)){
+		    //console.log("inserting a record");
+		    _storage[nr[key]]=(nr);
+		    _indexFunctions.forEach(function(I){
+			if( testIndex(I,r)){
+			    _indexes[I.n][nr[key]]=r;
 			}
-		};
+		    });
+		    return true;
+		}else
+		{
+		    return false;
+		}
+	    };
+	    var insertOrUpdate = function(r){
+		if(!insert(r)){
+		    update(r);
+		}
+	    };
 		var query = function(arg){
 			var result=[];
 			//console.log(compFunction);
@@ -156,17 +161,18 @@ simpleTable = (function () {
 		}
 
 		return {
-			insert : insert,
-			query : query,
-			uniqueKey : uniqueKey,
-			Fields:Fields,
-			sumAllUniqueField : sumAllUniqueField,
-			recordCount : recordCount,
-			//remove : remove,
-			update : update,
-			keyExists : keyExists,
-			addIndex : addIndex,
-			print : print
+		    insert : insert,
+		    insertOrUpdate: insertOrUpdate,
+		    query : query,
+		    uniqueKey : uniqueKey,
+		    Fields:Fields,
+		    sumAllUniqueField : sumAllUniqueField,
+		    recordCount : recordCount,
+		    //remove : remove,
+		    update : update,
+		    keyExists : keyExists,
+		    addIndex : addIndex,
+		    print : print
 		}
 	};
 

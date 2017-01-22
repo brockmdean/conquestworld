@@ -32,6 +32,7 @@ database = (function(){
     
     return {
 	insert            : localDb.insert,
+	insertOrUpdate    : localDb.insertOrUpdate,
 	query             : localDb.query,
 	uniqueKey         : localDb.uniqueKey,
 	Fields            : localDb.Fields,
