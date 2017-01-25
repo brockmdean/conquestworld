@@ -84,7 +84,7 @@ var remoteDatabase = (function (){
                     //updated is a list so get the last element.
                     var numChildren=s.numChildren();
                     //console.log("num children"+numChildren);
-                    s.forEach(function(c){lastUpdatedAt = c.val()});
+                    s.forEach(function(c){lastUpdatedAt = c.val();});
                     //delete the list 
                     fbDatabase.ref(game.world()+'/UpdatedAt').remove();
                 }
@@ -138,7 +138,7 @@ var remoteDatabase = (function (){
             //        keyList.shift();
             //    }
             //}
-	}
+	};
         var initModule = function (update, user, worldState){
             fbDatabase = firebase.database();
 
@@ -179,8 +179,11 @@ var remoteDatabase = (function (){
             //r.tID = transactionID;
             //r.count = 0;
             //console.log("pushupdate");
-            //console.log(r);
-            globalUpdatesRef.push(r);
+            //console.log(r);\
+	    var tr = Object.assign({},r);
+            tr = game.util.deflateRecord(tr);
+	    
+            globalUpdatesRef.push(tr);
             writeSeq++;
         };
   // end writer functions
@@ -188,13 +191,16 @@ var remoteDatabase = (function (){
         var processRecord = function(s){
             if (enableUpdateTrigger ){_incomingCount++;}
 	    var r = s.val();
-	    game.util.printRecord(r);
+	    //game.util.printRecord(r);
+            r = game.util.inflateRecord(r);
             var key = s.key;
-	    if(keyList[key]){//console.log("duplicate key skipping "+key);
-			     return}
+	    if(keyList[key]){
+                //console.log("duplicate key skipping "+key);
+		return;
+            }
 	    else{keyList[key]=true;}
 	    //console.log("process record "+s.key);
-	    
+	    //expand the record with the 0 fields
             if(useInitCallback){
                 //console.log("initCallBack");
                 lDb.insertOrUpdate(r);
@@ -208,62 +214,9 @@ var remoteDatabase = (function (){
 
 	var insertSnapshot = function(s){
 	    var r=s.val();
-	    lDb.insert(r);
+	    lDb.insertOrUpdate(r);
 	};
-        //removed this because 
-        //1. the tid , count and seq were ending up in the data base and I don't know how
-        //2 the bug the transactions were intended to fix , were not actually an out of
-        //order problem so this was just not working, and it think the length check 
-        //for complete was also broken it things actually came out of order. 
-        var processRecord2 = function (snapshot){
-	    // add this record to the transaction, or create one and add it.
-	    // if the record is complete
-	    // move the records in order to the output queue
-	    // and remove it from the transaction obj
-            if (enableUpdateTrigger ){_incomingCount++;}
-            var r_fb = snapshot.val();
-	    //console.log("processRecord");
-            //console.log(snapshot.key);
-            var r=Object.assign({},r_fb);
-	    //console.log(r);
-            var tID = r.tID;
-            var count = r.count;
-            var seq = parseInt(r.seq);
-	    var key = snapshot.key;
-            delete r.tID;
-            delete r.count;
-            delete r.seq;
-            keyList.push(key);
-            if (!transactions.hasOwnProperty(tID)){
-                transactions[tID] = {count: -1, recs: []};
-            }
-            if (count > 0){ transactions[tID]['count'] = count; }
-            if (count == 0){
-                transactions[tID]['recs'][seq] = r;
-            }
-	    // console.log("current length"+transactions[tID]['recs'].length+" expecting "+transactions[tID]['count']);
-            if (transactions[tID]['recs'].length == transactions[tID]['count']){
-		// console.log("output transaction "+tID);
-		// $("#recieved").append("output transaction "+tID+"  count  "+transactions[tID]['count']+"<BR>");
-                transactions[tID]['recs'].forEach(function (t){
-                    delete t.tID;
-                    delete t.count;
-                    delete t.seq;
-		    // printRecord(t)
-                    if(useInitCallback){
-                        //console.log("initCallBack");
-                        lDb.insert(t);
-                    }else{
-                        //console.log("processRecordCallBack");
-                        processRecordCallback(Object.assign({},t));
-                    }
-                });
-		// $("#recieved").append("<BR>");
-                delete transactions[tID];
-		lastTransaction = key;
-		if(_incomingCount > kTransactionsBetweenUpdates){_incomingCount=0; setTimeout(updateWorldState,1)}
-            };
-        };
+
         var processUser = function (snapshot){
             var r = snapshot.val();
             processUserCallback(r);
@@ -277,7 +230,10 @@ var remoteDatabase = (function (){
         };
         var updateWorldCoordinate = function (r,ptr){
             var hexID = r.hexID;
-            fbDatabase.ref(worldStateLocation +'/'+ ptr + '/' + hexID).set(r);
+	    var tr = Object.assign({},r);
+	    tr.V=0;
+	    tr.S=0;
+            fbDatabase.ref(worldStateLocation +'/'+ ptr + '/' + hexID).set(tr);
         };
 	var readUpdates = function(){
 	    if(lastTransaction){
@@ -450,7 +406,6 @@ var remoteDatabase = (function (){
         };
 	var printRecord = function (r){
             var s = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-
             s += ' &nbsp;&nbsp;&nbsp; UID ' + r['UID'];
             s += ' &nbsp;&nbsp;&nbsp; hexID ' + r['hexID'];
             s += ' &nbsp;&nbsp;&nbsp; A ' + r['A'];

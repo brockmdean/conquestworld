@@ -47,9 +47,43 @@ game.util = (function (){
           }
           console.log(s);
     };
-    
+    var deflateRecord = function(r){
+        //remove all 0 fields
+        //remove the h field , it can be recalculated from the hexID
+        //remove S,V,Marked always
+
+        delete r.S;
+        delete r.V;
+        delete r.Marker;
+        delete r.h;
+        var keys =Object.keys(r);
+        keys.forEach(function(i){
+            if(! r[i]){
+                delete r[i];
+            }
+        });
+        return r;
+    };
+    var inflateRecord = function(r){
+        r.S=0;
+        r.V=0;
+        var h = HexLib.idToHex(r.hexID);
+
+        r.h=h;
+
+        if(! r.K){r.K=0;}
+        if(! r.C){r.C=0;}
+        if(! r.M){r.M=0;}
+        if(! r.W){r.W=0;}
+        if(! r.UID){r.UID=0;}
+        if(! r.A){r.A=0;}
+
+        return r;
+    };
     return {
         getRandomIntInclusive : getRandomIntInclusive,
+        deflateRecord : deflateRecord,
+        inflateRecord : inflateRecord,
         createRecord          : createRecord,
         printRecord           : printRecord
     };
