@@ -9,7 +9,4 @@ var config = {
 firebase.initializeApp(config);
 var fDb = firebase.database();
 fDb.ref("worker").set("Im an awesome worker");
-console.log("still a great worker, but laxy");
-
-
-setTimeout(function(){postMessage("Id like to see this happen dudet")},5000);
+console.log("still a great worker");

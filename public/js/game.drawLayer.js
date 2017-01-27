@@ -415,22 +415,22 @@ game.drawLayer = (function() {
     }
     console.log("execute kepress");
     var key = keyQ.shift();
-    if (key === "w" || key === "W") {
+    if (key === "w") {
       radio("move").broadcast("north");
     }
-    if (key === "s" || key === "S") {
+    if (key === "s" ) {
       radio("move").broadcast("south");
     }
-    if (key === "a" || key === "A") {
+    if (key === "a") {
       radio("move").broadcast("west");
     }
-    if (key === "d" || key === "D") {
+    if (key === "d") {
       radio("move").broadcast("east");
     }
-    if (key === "q" || key === "Q") {
+    if (key === "q") {
       radio("move").broadcast("up");
     }
-    if (key === "e" || key === "E") {
+    if (key === "e") {
       radio("move").broadcast("down");
     }
   };
@@ -439,78 +439,132 @@ game.drawLayer = (function() {
     console.log("e : " + e.which);
     if (e.key === "W" || e.key === "w" || e.which === 38) {
       if (keyQ.length === 0) {
-        keyQ.push("w");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('north');
+          }else{
+            keyQ.push("w");
+            allowRecenter = true;
+          }
       }
+      return;
     }
     if (e.key === "S" || e.key === "s" || e.which === 40) {
       if (keyQ.length === 0) {
-        keyQ.push("s");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('south');
+          }else{
+            keyQ.push("s");
+            allowRecenter = true;
+          }
       }
+      return;
     }
     if (e.key === "A" || e.key === "a" || e.which === 37) {
       if (keyQ.length === 0) {
-        keyQ.push("a");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('west');
+          }else{
+            keyQ.push("a");
+            allowRecenter = true;
+            }
       }
+      return;
     }
     if (e.key === "D" || e.key === "d") {
       if (keyQ.length === 0) {
-        keyQ.push("d");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('east');
+          }else{
+            keyQ.push("d");
+            allowRecenter = true;
+          }
       }
+      return;
     }
     if (e.key === "Q" || e.key === "q") {
       if (keyQ.length === 0) {
-        keyQ.push("q");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('up');
+          }else{
+            keyQ.push("q");
+            allowRecenter = true;
+          }
       }
+      return;
     }
     if (e.key === "E" || e.key === "e" || e.which === 39) {
       if (keyQ.length === 0) {
-        keyQ.push("e");
-        allowRecenter = true;
+        if(e.shiftKey){
+          radio('move-cursor').broadcast('down');
+          }else{
+            keyQ.push("e");
+            allowRecenter = true;
+          }
       }
+      return;
     }
     if (e.key === "1") {
       buildCity();
+      return;
     }
     if (e.key === "2") {
       buildWall();
+      return;
     }
     if (e.key === "3") {
       toggleTrails();
+      return;
     }
     if (e.key === "4") {
       toggleQueen();
+      return;
     }
-    if (e.key === "C" || e.key === "c") {
-      radio("clear-selection").broadcast();
-    }
+      if (e.key === "C" || e.key === "c") {
+          buildCity();
+      return;
+      }
+      if(e.key ==="Escape"){
+          radio("clear-selection").broadcast();
+          return;
+      }   
     if (e.key === "X" || e.key === "x") {
       centerBoardOnQueen();
+      return;
     }
     if (e.key === "P" || e.key === "p") {
       radio("ping").broadcast();
+      return;
     }
     if (e.key === "M" || e.key === "m") {
       radio("toggle-marker").broadcast();
+      return;
     }
     if (e.key ==="j" || e.key === "j"){
         radio('jump-next-marker').broadcast();
+      return;
     }
+      if(e.key==="r" || e.key==="R"){
+          radio('recruit-troops').broadcast();
+          return;
+      }
     // debug keystrokes
     if (e.key === ";") {
       radio("dump-database").broadcast();
+      return;
     }
     if (e.key === ".") {
       radio("stop-updates").broadcast();
+      return;
     }
     if (e.key === "/") {
       radio("dump-transactions").broadcast();
+      return;
     }
+    if(e.shiftKey){return;}
+    if(e.ctrlKey){return;}
     e.preventDefault();
+    radio('message').broadcast('unknown key pressed : ' + e.key);
+      
   };
   var resolveClick = function(e) {
     if (dontClick) {
@@ -734,17 +788,19 @@ game.drawLayer = (function() {
   var distanceToEdge = function(record) {
     var h = record.h;
     var point = HexLib.hex_to_pixel(layout, h);
-    var dNorth = Math.abs((point.y - layout.origin.y) / layout.size.y);
-    var dSouth = Math.abs(
-      (point.y - (layout.origin.y + boardHeight)) / layout.size.y
-    );
-    var dEast = Math.abs((point.x - layout.origin.x) / layout.size.x);
-    var dWest = Math.abs(
-      point.x - (layout.origin.x + boardWidth) / layout.size.x
-    );
-    //         console.log("at : "+point.x+"  "+point.y);
-    // console.log("xc:"+XcenterHex+" xwidth:"+boardWidthInHex+" yheight:"+boardHeightInHex+" yc:"+ YcenterHex);
-    // console.log("dN:"+dNorth+" dS:"+dSouth+" dE:"+dEast+" dW:"+dWest);
+    var windowPoint={x:point.x-layout.origin.x, y:point.y - layout.origin.y};
+    var northEdge = 0;
+    var southEdge = boardHeight;
+    var westEdge = 0;
+    var eastEdge = boardWidth;
+    var dNorth = windowPoint.y / ((Math.sqrt(3)/2)*layout.size.y);
+    var dSouth = (southEdge - windowPoint.y ) / ((Math.sqrt(3)/2)*layout.size.y);
+    var dEast = windowPoint.x / (layout.size.x*2);
+    var dWest = (boardWidth - windowPoint.x) / (layout.size.x*2);
+//    console.log("at : "+windowPoint.x+"  "+windowPoint.y);
+//    console.log("origin : "+layout.origin.x+" "+layout.origin.y);
+//    console.log("dN:"+dNorth+" dS:"+dSouth+" dE:"+dEast+" dW:"+dWest);
+//    console.log("min distance is :"+ Math.min(dNorth, dSouth, dEast, dWest));
     return Math.min(dNorth, dSouth, dEast, dWest);
   };
 
@@ -769,11 +825,13 @@ game.drawLayer = (function() {
     if (record.UID === game.uid()) {
       // if the selected hex gets near the edge, and we are allowed
       // to recenter, and if we are selected.
-      if (distanceToEdge(record) < 2 && allowRecenter && record.S) {
-        allowRecenter = false;
-        //console.log("Recentering");
-        centerBoard(record.h, true);
-        return;
+      if(record.Cursor){
+        if (distanceToEdge(record) < 2 && allowRecenter) {
+          allowRecenter = false;
+          //console.log("Recentering");
+          centerBoard(record.h, true);
+          return;
+        }
       }
     }
     if (record.UID !== 0) {
@@ -831,10 +889,22 @@ game.drawLayer = (function() {
        cxt.fillStyle = "black";
        cxt.fillText("F", point.x - 8, point.y + 7);
    }
+   if(record.Cursor){
+     drawCursor(record.h);
+   }
     cxt.restore();
   };
+  var drawCursor=function(h){
+    var point = HexLib.hex_to_pixel_windowed(layout, h);
+    cxt.save();
+    cxt.strokeStyle='green';
+    cxt.arc(point.x,point.y,layout.size.x*0.75 ,0, Math.PI*2,false);
+    cxt.stroke();
+    cxt.restore();
+    
+  };
   var drawTerain = function(type, h) {
-    var point = HexLib.hex_to_pixel(layout, h);
+    var point = HexLib.hex_to_pixel_windowed(layout, h);
     if (type === 1) {
       cxt.beginPath();
       cxt.moveTo(point.x - 7, point.y + 7);
@@ -870,6 +940,7 @@ game.drawLayer = (function() {
     corners.forEach(function(c) {
       cxt.lineTo(c.x, c.y);
     });
+    cxt.closePath();
     cxt.strokeStyle = color;
     cxt.lineWidth = 1;
     cxt.stroke();

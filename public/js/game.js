@@ -14,7 +14,7 @@
 
 var game = (function() {
   "use strict";
-  var _world = "dev";
+  var _world = "dev2";
   var _UID;
   var _visibility = false;
   var _debug = false;
@@ -97,8 +97,6 @@ var game = (function() {
     game.splash.launchSplash();
     game.model.initModule(name);
     game.drawLayer.initModule("#GameBoard");
-   // var worker = new Worker("js/test.js");
-   //   worker.onerror=function(e){throw e.data};
       
   };
     var base64 ="0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
@@ -125,6 +123,9 @@ var game = (function() {
     $("#playButton").on("click", initGame);
     game.splash.initModule($container);
     //radio('debug-transactions').subscribe(debugTransactions);
+    var worker = new Worker("js/test.js");
+    worker.onerror=function(e){throw e.data};
+    worker.onmessage = function(m){ console.log(m)};
   };
 
   return {

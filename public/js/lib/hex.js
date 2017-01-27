@@ -195,7 +195,6 @@ var pixel_to_hex = function (layout, p)
 //    var pt = Point((p.x - origin.x) / size.x, (p.y - origin.y) / size.y);
     var q = M.b0 * pt.x + M.b1 * pt.y;
     var r = M.b2 * pt.x + M.b3 * pt.y;
-    console.log("q:"+q+" r:"+r); 
     return Hex(q, r, -q - r);
 }
 
