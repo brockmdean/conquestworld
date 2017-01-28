@@ -102,7 +102,8 @@ game.util = (function() {
     return r;
   };
 
-  var recordsEqual = function(a,b){
+    var recordsEqual = function(a,b){
+    if(a.local){ if(a.S !== b.S){return false;}}
     // a record is the same if 
     if(a.A !== b.A){return false;}
     if(a.C !== b.C){return false;}

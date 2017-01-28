@@ -29,7 +29,8 @@ var remoteDatabase = (function() {
     var outputQueue = [];
     var lastTransaction;
     var keyList = {};
-    var lDb;
+      var lDb;
+      var netWorker;
     //in ms
     var kMinTimeBetweenUpdates = 10000000;
     // the # of transactions between atempts update the worldstate
@@ -175,7 +176,9 @@ var remoteDatabase = (function() {
       processUserCallback = user.callback;
       usersRef.on("child_added", processUser);
 
-      worldStateLocation = worldState.location;
+        worldStateLocation = worldState.location;
+        netWorker = new Worker('js/updateWorker.js');
+        netWorker.onmessage=processUserCallback;
     };
 
     // writer functions
@@ -208,7 +211,8 @@ var remoteDatabase = (function() {
       localR.local = 1;
       //lDb.insertOrUpdate(r);
       processRecordCallback(localR);
-      globalUpdatesRef.push(tr);
+        //globalUpdatesRef.push(tr);
+         netWorker.postMessage(tr);
       writeSeq++;
     };
     // end writer functions
@@ -398,23 +402,23 @@ var remoteDatabase = (function() {
     var finalLink = function() {
       //console.log("finalLink");
       //console.log(linkList);
-      linkList.forEach(function(l) {
-        if (l.liveCallback) {
-          if (l.liveStartAt) {
-            //console.log("live start at with key "+ l.liveStartAt);
-            fbDatabase
-              .ref(game.world() + l.path)
-              .orderByKey()
-              .startAt(l.liveStartAt)
-              .on("child_added", l.liveCallback);
-          } else {
-            //console.log("live start at begining");
-            fbDatabase
-              .ref(game.world() + l.path)
-              .on("child_added", l.liveCallback);
-          }
-        }
-      });
+//      linkList.forEach(function(l) {
+//       if (l.liveCallback) {
+//          if (l.liveStartAt) {
+//            //console.log("live start at with key "+ l.liveStartAt);
+//            fbDatabase
+//              .ref(game.world() + l.path)
+//              .orderByKey()
+//              .startAt(l.liveStartAt)
+//              .on("child_added", l.liveCallback);
+//          } else {
+//            //console.log("live start at begining");
+//            fbDatabase
+//              .ref(game.world() + l.path)
+//              .on("child_added", l.liveCallback);
+//          }
+//        }
+//      });
       usersRef.on("child_added", processUser);
       enableUpdateTrigger = true;
       useInitCallback = false;

@@ -14,7 +14,7 @@
 
 var game = (function() {
   "use strict";
-  var _world = "dev2";
+  var _world = "dev3";
   var _UID;
   var _visibility = false;
   var _debug = false;
@@ -24,14 +24,16 @@ var game = (function() {
     "Guide <BR>" +
     "Movement keys q,w,e,a,s,d will move selected armies in the 6 directions.<BR>" +
     "arrow keys : Move a selected armies in 4 of the 6 directions.<BR>" +
-    '1 : Build a city, cost starts at 100 gold, current cost is displayed in 100s. or click "C" button.<BR>' +
+    '1 : Build a city, cost starts at 100 gold, current cost is displayed in 100s. or click "C" button. or press c key.<BR>' +
     '2 : Build a wall, costs 50 gold. walls take 100 troops to breach or click "W" button.<BR>' +
+    "3 : Toggle Trail. <BR>" +
     '4 : Enable Queen movement or click "Q" button.<BR>' +
-    "c : Clear all selected armies.<BR>" +
+    "escape : Clear all selected armies.<BR>" +
     "p : Send a radar ping and reveal all units within 100 hex. costs at least 1000.<BR>" +
-      "x : Recenter the map on the Queen.<BR>" +
-      "m : Drop a marker.<BR>"+
-      "j : Jump to the next marker in a ring fashion.<BR>"+
+    "x : Recenter the map on the Queen.<BR>" +
+    "m : Drop a marker.<BR>" +
+    "j : Jump to the next marker in a ring fashion.<BR>" +
+    "r : recruit armies in your cities. cost is 1 gold per troop.<BR>" +
     "Click to select  a tile.<BR>" +
     "Shift click and drag to select multiple armies.<BR>" +
     "Control click and drag to select multiple empty.<BR></span> ";
@@ -97,35 +99,30 @@ var game = (function() {
     game.splash.launchSplash();
     game.model.initModule(name);
     game.drawLayer.initModule("#GameBoard");
-      
   };
-    var base64 ="0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
-    var getID = function(){
-        var array =new  Uint8Array(6);
-        window.crypto.getRandomValues(array);
-        var idA=[];
-        var id ='';
-        for(let i =0; i<8;i++){
-            
-            let r= array[i]%64;
-            console.log(r);
-            idA.push( base64.substr(r,1));
-        }
-        
-        return id.concat(idA[0],idA[1],idA[2],idA[3],idA[4],idA[5]);
-    };
-   
+  var base64 = "0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
+  var getID = function() {
+    var array = new Uint8Array(6);
+    window.crypto.getRandomValues(array);
+    var idA = [];
+    var id = "";
+    for (let i = 0; i < 8; i++) {
+      let r = array[i] % 64;
+      console.log(r);
+      idA.push(base64.substr(r, 1));
+    }
+
+    return id.concat(idA[0], idA[1], idA[2], idA[3], idA[4], idA[5]);
+  };
+
   var initModule = function($container) {
-      _UID = getID();
- //     console.log("my UID is " + _UID);
-      console.log("my better ID is "+ _UID);
+    _UID = getID();
+    //     console.log("my UID is " + _UID);
+    console.log("my better ID is " + _UID);
     $($container).html(landingHtml);
     $("#playButton").on("click", initGame);
     game.splash.initModule($container);
     //radio('debug-transactions').subscribe(debugTransactions);
-    var worker = new Worker("js/test.js");
-    worker.onerror=function(e){throw e.data};
-    worker.onmessage = function(m){ console.log(m)};
   };
 
   return {

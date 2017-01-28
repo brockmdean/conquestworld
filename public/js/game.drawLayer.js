@@ -673,7 +673,7 @@ game.drawLayer = (function() {
     cxt.strokeRect(wall.x, wall.y, wall.width, wall.width);
     cxt.fillText("W", wall.x + 7, wall.y + wall.width - 12);
     cxt.font = "10px san-serif";
-    cxt.fillText("50", wall.x + 7, wall.y + wall.width - 3);
+    cxt.fillText("100", wall.x + 7, wall.y + wall.width - 3);
   };
 
   var drawMoveTrails = function() {

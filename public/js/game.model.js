@@ -77,7 +77,7 @@ game.model = (function() {
   db.addIndex(matchSelectedArmies);
   db.addIndex(matchSelected);
   var moveDb;
-  var gold = 200000;
+  var gold = 2000;
   var kTroopLimit = 100;
   var kCityCost = 100;
   var kCityCostIncr = 100;
@@ -240,22 +240,22 @@ game.model = (function() {
       // game.util.printRecord(queenR);
       // BUG once the queen has been removed this causes errors
       // because teh queen cant be found on line 243
-      if (queenR && r.hexID == queenR.hexID) {
+        if (queenR && r.hexID == queenR.hexID && r.UID !== game.uid()) {
         // we are updating the queen
         if (r.K == 0 && queenR.K == 1) {
           // we died.
           // now update all our cits to the new owner.
           // console.log("we are loosing");
-          myCities = db.matchCities();
-          newOwner = r.UID;
-          rDB.openTransaction();
-          myCities.forEach(function(_r) {
-            _r.UID = newOwner;
-            _r.V = 0;
-            rDB.pushUpdate(_r);
-          });
-          rDB.closeTransaction();
-          radio("losing-message").broadcast();
+          //myCities = db.matchCities();
+          //newOwner = r.UID;
+          //rDB.openTransaction();
+         // myCities.forEach(function(_r) {
+         //   _r.UID = newOwner;
+         //   _r.V = 0;
+         //   rDB.pushUpdate(_r);
+         // });
+         // rDB.closeTransaction();
+         // radio("losing-message").broadcast();
         }
       }
       db.update(r);
@@ -608,29 +608,35 @@ game.model = (function() {
   };
   var moveQueen = function(dir) {
     // var records = db.query(matchQueen);
-    var record = db.matchQueen()[0];
+      var record = db.matchQueen()[0];
+      var r = Object.assign({},record);
     // game.util.printRecord(record);
-    var targetRecord = getTarget(dir, record);
+      var tr = getTarget(dir, record);
+      var targetRecord= Object.assign({},tr);
     if (targetRecord.M) {
       return;
     }
     if (targetRecord.UID !== game.uid() && targetRecord.UID != 0) {
       return;
     }
-    if (record.A || record.C || record.W) {
-      //            db.update({hexID: record.hexID, K: 0});
-      record.K = 0;
+    if (r.A || r.C || r.W) {
+      //            db.update({hexID: r.hexID, K: 0});
+      r.K = 0;
     } else {
-      db.update({ hexID: record.hexID, K: 0, UID: 0 });
-      record.K = 0;
-      record.UID = 0;
+     // db.update({ hexID: r.hexID, K: 0, UID: 0 });
+      r.K = 0;
+      r.UID = 0;
     }
     //if the queen is moving , keep the cursor with her.
-    db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
+      //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
+      r.Cursor=0;
     cursorRecord = targetRecord;
-    db.update(r);
-    db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
-    rDB.pushUpdate(record);
+    //db.update(r);
+      //db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
+      targetRecord.K=1;
+      targetRecord.UID=game.uid();
+      targetRecord.Cursor=1;
+    rDB.pushUpdate(r);
     rDB.pushUpdate(targetRecord);
   };
   var getTarget = function(dir, record) {

@@ -8,5 +8,18 @@ var config = {
   };
 firebase.initializeApp(config);
 var fDb = firebase.database();
-fDb.ref("worker").set("Im an awesome worker");
-console.log("still a great worker");
+console.log("still a great net worker");
+var ref=fDb.ref('rdev/updates');
+
+var receiveRecord= function(s){
+  //console.log("Recieved a record from firebase sending it to the user!");
+  var r = s.val();
+  postMessage(r);
+};
+
+onmessage = function(e){
+  //console.log("Recieced a record from the user, sending it to firebase");
+  var r = e.data;
+  ref.push(r);
+};
+ref.on('child_added', receiveRecord);
