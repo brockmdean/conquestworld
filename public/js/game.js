@@ -14,7 +14,7 @@
 
 var game = (function() {
   "use strict";
-  var _world = "dev3";
+  var _world = "dev";
   var _UID;
   var _visibility = false;
   var _debug = false;
@@ -97,8 +97,8 @@ var game = (function() {
       '<canvas id=\'GameBoard\' width="1200" height="600"></canvas>'
     );
     game.splash.launchSplash();
-    game.model.initModule(name);
     game.drawLayer.initModule("#GameBoard");
+    game.model.initModule(name);
   };
   var base64 = "0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
   var getID = function() {

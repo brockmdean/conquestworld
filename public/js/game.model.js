@@ -83,7 +83,7 @@ game.model = (function() {
   var kCityCostIncr = 100;
   var kWallCost = 100;
   var kWallStrength = 100;
-  var kPingCost = 1000;
+    var kPingCost = 1;
   var kPingRange = 100;
   var kPingRangeSquared = kPingRange * kPingRange;
   var trailsOn = false;
@@ -140,7 +140,7 @@ game.model = (function() {
     }
     db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
     cursorRecord.Cursor = 0;
-    radio("draw-hexagon").broadcast(cursorRecord);
+      //radio("draw-hexagon").broadcast(cursorRecord);
 
     // console.log("game.model received toggle-selection message"+data.hexID);
     // console.log("count "+records.length);
@@ -148,7 +148,7 @@ game.model = (function() {
     // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
     record = records[0];
     cursorRecord = record;
-    radio("draw-hexagon").broadcast(cursorRecord);
+    //radio("draw-hexagon").broadcast(cursorRecord);
     if (!record.V) {
       return;
     }
@@ -163,14 +163,14 @@ game.model = (function() {
     }
     db.update({ hexID: record.hexID, S: selected, Cursor: 1 });
     record.S = selected;
-    radio("draw-hexagon").broadcast(record);
+    //radio("draw-hexagon").broadcast(record);
   };
   var clearSelection = function() {
     var records = db.matchSelected();
     records.forEach(function(r) {
       r.S = 0;
       db.update(r);
-      radio("draw-hexagon").broadcast(r);
+      //radio("draw-hexagon").broadcast(r);
     });
   };
   //    var updateWorld = function (r){
@@ -261,7 +261,7 @@ game.model = (function() {
       db.update(r);
     }
     if (r.V || game.visibility()) {
-      radio("draw-hexagon").broadcast(r);
+      //radio("draw-hexagon").broadcast(r);
     }
 
     // update the visibility of the neighbors
@@ -272,7 +272,7 @@ game.model = (function() {
           _r.V = 1;
           db.update(_r);
           window.neighborDrawing++;
-          radio("draw-hexagon").broadcast(_r);
+          //radio("draw-hexagon").broadcast(_r);
         }
       });
     }
@@ -309,7 +309,6 @@ game.model = (function() {
     //console.log('creating king at x:' + x + ' y:' + y + ' z:'+ z);
     //console.log('ocnstraint x+y+z= 0 :'+ (x+y+z));
     var h = HexLib.Hex(x, y, z);
-    rDB.openTransaction();
     var r = game.util.createRecord({
       UID: game.uid(),
       hexID: HexLib.hexToId(h),
@@ -320,25 +319,18 @@ game.model = (function() {
       Cursor: 1
     });
     cursorRecord = r;
-    db.insert(r);
-    rDB.pushUpdate(r);
-    //      for(var i =1; i<10;i++){
-    //              r = game.util.createRecord({UID:"qwerqwef",'hexID':(x+i*10)+"_"+y,A:5});
-    //              rDB.pushUpdate(r);
-    //      }
-    //      playerMap["qwerqwef"]="man";
-    // var m = game.util.createRecord({hexID:(x+1)+"_"+y,M:game.util.getRandomIntInclusive(0,3)});
-    // this string was 126 bytes long.
-    // var JSONstringR = JSON.stringify(r);
-    // console.log(r);
-    // console.log(JSONstringR);
-    // console.log("length "+JSONstringR.length);
-    // var backR= JSON.parse(JSONstringR);
-    // console.log(backR);
-    // rDB.pushUpdate(m);
-    rDB.closeTransaction();
+    //db.insert(r);
+      rDB.pushUpdate(r);
+      rDB.updatePingList(r);
     radio("center-on-queen").broadcast(h, true);
-    radio("launch-complete").broadcast();
+      radio("launch-complete").broadcast();
+//      for (let i =0 ; i<5 ; i++){
+//          
+//          let  m = game.util.createRecord({hexID:x + "_" + (y+2+i) + "_" + (z-2-i), M:1});
+//          //rDB.pushUpdate(m);
+//          rDB.updateWorldCoordinate(m);
+//
+//      }
   };
   var queenLocation = function() {
     var rs = db.matchQueen();
@@ -348,11 +340,13 @@ game.model = (function() {
     // here we would download the db and send a bunch of messages to the drawlayser
     // TODO download the database
     // make some mountians
-    for (var i = 0; i < 900; i++) {
+    for (var i = 0; i < 3600; i++) {
       var x = game.util.getRandomIntInclusive(0, 300);
-      var y = game.util.getRandomIntInclusive(0, 300);
-      // var r = game.util.createRecord({hexID:x+"_"+y,M:game.util.getRandomIntInclusive(1,2)});
-      // rDB.updateWorldCoordinate(r);
+        var y = game.util.getRandomIntInclusive(0, 300);
+        var z = -x - y;
+        var h = HexLib.Hex(x,y,z);
+        var r = game.util.createRecord({hexID:x+"_"+y+"_"+z,M:game.util.getRandomIntInclusive(1,2),h:h});
+      rDB.updateWorldCoordinate(r);
     }
   };
   var generateNewTroop = function(record, recordNumber) {
@@ -575,10 +569,10 @@ game.model = (function() {
     }
     //game.util.printRecord(targetRecord);
     db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    radio("draw-hexagon").broadcast(cursorRecord);
+    //radio("draw-hexagon").broadcast(cursorRecord);
     cursorRecord = targetRecord;
     db.update({ hexID: cursorRecord.hexID, Cursor: 1, S: 1 });
-    radio("draw-hexagon").broadcast(cursorRecord);
+    //radio("draw-hexagon").broadcast(cursorRecord);
   };
   var move = function(dir) {
     // you cant move the queen and troops at the same
@@ -935,8 +929,9 @@ game.model = (function() {
       });
     }
 
-    records.forEach(function(r) {
-      radio("draw-hexagon").broadcast(r);
+      records.forEach(function(r) {
+    //keep this one 
+    radio("draw-hexagon").broadcast(r);
     });
   };
   var ping = function() {
@@ -958,34 +953,32 @@ game.model = (function() {
       h = records[0].h;
     } else {
       radio("message").broadcast("Please select 0 or 1 armies for the ping");
-      //TODO explain that you can only have 0 or 1 army selected to origin the ping
       return;
     }
     //console.log('ping origin ' + HexLib.hexToId(h));
-    var pingData = createPingData(h);
-    gold = 0;
+      rDB.getPingData(function(data){
+          createPingData(data,h);
+                                    });
+    gold -= kPingCost ;
     // kPingCost;
     radio("draw-gold").broadcast(gold);
-    radio("ping-data").broadcast(pingData);
   };
-  var createPingData = function(h) {
-    var records = db.query(function(r) {
-      return matchRange(r, h);
-    });
-    var pingData = [];
-    var t, p;
-    //console.log("h "+h.q+" "+h.r+" "+h.s);
-    records.forEach(function(r) {
-      //recenter the hexes around the ping source (h)
-      t = r.h;
-      t = HexLib.hex_subtract(t, h);
-      // console.log("r "+r.h.q+" "+r.h.r+" "+r.h.s);
-      //console.log("t "+t.q+" "+t.r+" "+t.s);
-      t.UID = r.UID;
-      pingData.push(t);
-    });
-    //console.log(pingData);
-    return pingData;
+    var createPingData = function(pingData,h) {
+        //filter to hexes within 100
+//        console.log("createPingData");
+//        console.log(h);
+        h.UID=game.uid();
+      var finalPing=[];
+      pingData.forEach(function(r){
+          if(HexLib.hex_distance(r,h)< kPingRange){              
+              let id = r.UID;
+              r=HexLib.hex_subtract(r,h);
+              r.UID=id;
+              finalPing.push(r);
+          }
+      });
+        finalPing.push(h);
+    radio("ping-data").broadcast(finalPing);
   };
   var addPlayerNameToList = function(r) {
     playerMap[r.UID] = r.name;
@@ -1020,18 +1013,18 @@ game.model = (function() {
     rDB.initModule(
       { location: game.world() + "/updates", callback: update },
       { location: game.world() + "/users", callback: addPlayerNameToList },
-      { location: game.world() + "/world" }
+      { location: game.world() + "/world"}
     );
 
     rDB.pushUser({ UID: game.uid(), name: playerName });
     // spawn the king
     // TODO spawn the king away from everyone else.
-    //        initializeWorld();
+    //initializeWorld();
     //      rDB.tryUpdate();
-    rDB.joinWorld(createKing);
-    // createKing();
+      //rDB.joinWorld(createKing);
+    createKing();
     updateIntervalID = setInterval(oneSecondUpdate, 1000);
-    // setTimeout(oneSecondUpdate,10000);
+    //setTimeout(oneSecondUpdate,10000);
     radio("toggle-selection").subscribe(toggleSelection);
     radio("build-wall").subscribe(buildWalls);
     radio("build-city").subscribe(buildCities);
@@ -1077,7 +1070,7 @@ game.model = (function() {
       }
       db.update({ hexID: record.hexID, Marker: marked });
       record.Marker = marked;
-      radio("draw-hexagon").broadcast(record);
+      //radio("draw-hexagon").broadcast(record);
     } else {
       radio("draw-message").broadcast("select only 1 hex to toggle a marker");
     }

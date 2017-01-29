@@ -93,7 +93,8 @@ game.drawLayer = (function() {
     { UID: "uioppoip", name: "sandy", score: 6 }
   ];
   var keyQ = [];
-  var keyInterval;
+    var keyInterval;
+    var drawInterval;
   var pingImgData = [];
   var allowRecenter = false;
   // ----------------- END MODULE SCOPE VARIABLES ---------------
@@ -157,17 +158,20 @@ game.drawLayer = (function() {
     //centerBoard(queenLocation);
     // allow 4 moves per second.
     keyInterval = setInterval(executeKey, 250);
-    // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
+      // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
+      drawInterval = setInterval(function(){centerBoard(null,true);},100);
   };
   var centerBoardOnQueen = function() {
     var h = game.model.queenLocation();
     centerBoard(h, true);
   };
   var centerBoard = function(h, redraw) {
-    //console.log("centerBoard");
-    var newCenter = HexLib.hex_to_pixel(layout, h);
-    layout.origin.x = newCenter.x - boardWidth / 2;
-    layout.origin.y = newCenter.y - boardHeight / 2;
+      //console.log("centerBoard");
+      if(h){
+          var newCenter = HexLib.hex_to_pixel(layout, h);
+          layout.origin.x = newCenter.x - boardWidth / 2;
+          layout.origin.y = newCenter.y - boardHeight / 2;
+      }
     //console.log(h);
     //console.log("boardWidth: "+boardWidth+" boardHeight "+boardHeight);
     //console.log(newCenter);
@@ -185,15 +189,14 @@ game.drawLayer = (function() {
   };
   var ping = function(data) {
     pingImgData = data;
-    //console.log("ping");
+    console.log("ping");
     //        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
     //        var pd = pingImgData.data;
     // console.log(pingImgData.data.length);
-    // console.log(data);
     drawPingMap();
   };
   var drawPingPoint = function(d) {
-    //	console.log("drawPingPoint");
+//    	console.log("drawPingPoint");
     //	console.log("q:"+d.q+" r:"+d.r+" s:"+d.s);
     var p = HexLib.hex_to_pixel(pingLayout, d);
     //	console.log("x:"+p.x+" y:"+p.y);
@@ -751,7 +754,6 @@ game.drawLayer = (function() {
       );
     }
     cxt.restore();
-    drawPingMap();
   };
   var drawGold = function(gold) {
     // cxt.strokeStyle='white';

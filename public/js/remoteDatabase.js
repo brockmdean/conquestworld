@@ -178,7 +178,8 @@ var remoteDatabase = (function() {
 
         worldStateLocation = worldState.location;
         netWorker = new Worker('js/updateWorker.js');
-        netWorker.onmessage=processUserCallback;
+        netWorker.onmessage=processRecord;
+        netWorker.postMessage({data:game.world(),type:'world'});
     };
 
     // writer functions
@@ -209,41 +210,21 @@ var remoteDatabase = (function() {
       tr = game.util.deflateRecord(tr);
       var localR = Object.assign({}, r);
       localR.local = 1;
-      //lDb.insertOrUpdate(r);
-      processRecordCallback(localR);
-        //globalUpdatesRef.push(tr);
-         netWorker.postMessage(tr);
+
+        processRecordCallback(localR);
+        var packet={data:tr,type:'record'};        
+      netWorker.postMessage(packet);
       writeSeq++;
     };
     // end writer functions
-    var processRecord = function(s) {
+    var processRecord = function(r) {
       if (enableUpdateTrigger) {
         _incomingCount++;
       }
-      var r = s.val();
+      //game.util.printRecord(r.data);
+        r = game.util.inflateRecord(r.data);
       //game.util.printRecord(r);
-      r = game.util.inflateRecord(r);
-      var key = s.key;
-      if (keyList[key]) {
-        //console.log("duplicate key skipping "+key);
-        return;
-      } else {
-        keyList[key] = true;
-      }
-      //console.log("process record "+s.key);
-      //expand the record with the 0 fields
-      if (useInitCallback) {
-        //console.log("initCallBack");
-        lDb.insertOrUpdate(r);
-      } else {
-        //console.log("processRecordCallBack");
-        processRecordCallback(Object.assign({}, r));
-      }
-      lastTransaction = key;
-      if (_incomingCount > kTransactionsBetweenUpdates) {
-        _incomingCount = 0;
-        setTimeout(updateWorldState, 1);
-      }
+      processRecordCallback(Object.assign({}, r));
     };
 
     var insertSnapshot = function(s) {
@@ -262,13 +243,28 @@ var remoteDatabase = (function() {
       var r = s.val();
       processRecordCallback(r);
     };
-    var updateWorldCoordinate = function(r, ptr) {
+    var updateWorldCoordinate = function(r) {
       var hexID = r.hexID;
       var tr = Object.assign({}, r);
-      tr.V = 0;
-      tr.S = 0;
-      fbDatabase.ref(worldStateLocation + "/" + ptr + "/" + hexID).set(tr);
+        tr= game.util.deflateRecord(r);
+        delete tr.hexID;
+      fbDatabase.ref(worldStateLocation + "/"+ hexID).set(tr);
     };
+      var updatePingList = function(r){
+          var h = Object.assign({},r.h);
+          h.UID= r.UID;
+          fbDatabase.ref(game.world()+"/pingList/"+r.UID).set(h);
+      };
+      var getPingData = function(callback){
+          fbDatabase.ref(game.world()+"/pingList/").once('value',function(s){parsePingData(s,callback);});
+      };
+      var parsePingData = function(s,callback){
+          var pingData = [];
+          s.forEach(function(childS){
+              pingData.push(childS.val());
+          });
+          callback(pingData);
+      };
     var readUpdates = function() {
       if (lastTransaction) {
         globalUpdatesRef
@@ -484,7 +480,7 @@ var remoteDatabase = (function() {
           .ref(game.world() + "/terrain")
           .on("child_added", processTerrain);
         for (var i = 0; i < 1800; i++) {
-          var x = game.util.getRandomIntInclusive(0, 300);
+          var x = game.util.pugetRandomIntInclusive(0, 300);
           var y = game.util.getRandomIntInclusive(0, 300);
           var r = game.util.createRecord({
             hexID: x + "_" + y,
@@ -513,7 +509,9 @@ var remoteDatabase = (function() {
       initModule: initModule,
       openTransaction: openTransaction,
       pushUpdate: pushUpdate,
-      updateWorldCoordinate: updateWorldCoordinate,
+        updateWorldCoordinate: updateWorldCoordinate,
+        updatePingList:updatePingList,
+        getPingData:getPingData,
       pushUser: pushUser,
       readWorld: readWorld,
       readUpdates: readUpdates,

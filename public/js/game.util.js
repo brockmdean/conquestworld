@@ -64,6 +64,7 @@ game.util = (function() {
     delete r.V;
     delete r.Marker;
     delete r.Cursor;
+    delete r.local;
     delete r.h;
     var keys = Object.keys(r);
     keys.forEach(function(i) {
@@ -102,13 +103,28 @@ game.util = (function() {
     return r;
   };
 
-    var recordsEqual = function(a,b){
-    if(a.local){ if(a.S !== b.S){return false;}}
-    // a record is the same if 
-    if(a.A !== b.A){return false;}
-    if(a.C !== b.C){return false;}
-    if(a.W !== b.W){return false;}
-    if(a.K !== b.K){return false;}
+  var recordsEqual = function(a, b) {
+    if (a.local) {
+      if (a.S !== b.S) {
+        return false;
+      }
+    }
+    // a record is the same if
+    if (a.A !== b.A) {
+      return false;
+    }
+    if (a.C !== b.C) {
+      return false;
+    }
+    if (a.W !== b.W) {
+      return false;
+    }
+    if (a.K !== b.K) {
+      return false;
+    }
+    if (a.M !== b.M) {
+      return false;
+    }
     return true;
   };
   return {
@@ -117,7 +133,7 @@ game.util = (function() {
     inflateRecord: inflateRecord,
     createRecord: createRecord,
     printRecord: printRecord,
-    recordsEqual : recordsEqual
+    recordsEqual: recordsEqual
   };
 })();
 
