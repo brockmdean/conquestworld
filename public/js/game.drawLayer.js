@@ -26,8 +26,9 @@ game.drawLayer = (function() {
   var YcenterHex = 0;
   var startXcenter;
   var startYcenter;
-  var startXpoint;
+  var startXpoint = null;
   var startYpoint;
+  var endPoint = {};
   var select;
   var r = size * Math.sqrt(3) / 2;
   var cxt;
@@ -93,10 +94,11 @@ game.drawLayer = (function() {
     { UID: "uioppoip", name: "sandy", score: 6 }
   ];
   var keyQ = [];
-    var keyInterval;
-    var drawInterval;
+  var keyInterval;
+  var drawInterval;
   var pingImgData = [];
   var allowRecenter = false;
+  var message;
   // ----------------- END MODULE SCOPE VARIABLES ---------------
   // ------------------- BEGIN UTILITY METHODS ------------------
   //  example : getTrimmedString
@@ -150,28 +152,34 @@ game.drawLayer = (function() {
     radio("losing-message").subscribe(drawLosingMessage);
     radio("draw-leader-board").subscribe(drawLeaderBoard);
     radio("update-city-cost").subscribe(updateCityCost);
-    radio("ping-data").subscribe(ping);
+    //radio("ping-data").subscribe(ping);
     radio("center-on-queen").subscribe(centerBoard);
-    radio("message").subscribe(drawMessage);
+    radio("message").subscribe(saveMessage);
+    radio("ping-data-point").subscribe(pingDataPoint);
     pingImgData = [];
     // cxt.createImageData(kPingRange * 2, kPingRange * 2);
     //centerBoard(queenLocation);
     // allow 4 moves per second.
     keyInterval = setInterval(executeKey, 250);
-      // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
-      drawInterval = setInterval(function(){centerBoard(null,true);},100);
+    // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
+    drawInterval = setInterval(
+      function() {
+        centerBoard(null, true);
+      },
+      150
+    );
   };
   var centerBoardOnQueen = function() {
     var h = game.model.queenLocation();
     centerBoard(h, true);
   };
   var centerBoard = function(h, redraw) {
-      //console.log("centerBoard");
-      if(h){
-          var newCenter = HexLib.hex_to_pixel(layout, h);
-          layout.origin.x = newCenter.x - boardWidth / 2;
-          layout.origin.y = newCenter.y - boardHeight / 2;
-      }
+    //console.log("centerBoard");
+    if (h) {
+      var newCenter = HexLib.hex_to_pixel(layout, h);
+      layout.origin.x = newCenter.x - boardWidth / 2;
+      layout.origin.y = newCenter.y - boardHeight / 2;
+    }
     //console.log(h);
     //console.log("boardWidth: "+boardWidth+" boardHeight "+boardHeight);
     //console.log(newCenter);
@@ -180,23 +188,28 @@ game.drawLayer = (function() {
     //        Xcenter = (location.x - Math.floor(boardWidthInHex * 0.5)) * (size * 1.5) * -1;
     //        XcenterHex = location.x - (boardWidthInHex / 2);
     //        YcenterHex = location.y - (boardHeightInHex / 2);
-    drawBoard();
     if (redraw) {
+      drawBoard();
       radio(
         "request-hex-in-square"
       ).broadcast({ x: layout.origin.x, y: layout.origin.y, width: boardWidth, height: boardHeight });
     }
   };
-  var ping = function(data) {
-    pingImgData = data;
-    console.log("ping");
+ // var ping = function(data) {
+ //   pingImgData = data;
+ //   console.log("ping");
     //        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
     //        var pd = pingImgData.data;
     // console.log(pingImgData.data.length);
-    drawPingMap();
+ //   drawPingMap();
+ // };
+    var pingDataPoint = function(h) {
+        console.log("pingDataPoint");
+        console.log(h);
+        pingImgData.push(h);
   };
   var drawPingPoint = function(d) {
-//    	console.log("drawPingPoint");
+    //    	console.log("drawPingPoint");
     //	console.log("q:"+d.q+" r:"+d.r+" s:"+d.s);
     var p = HexLib.hex_to_pixel(pingLayout, d);
     //	console.log("x:"+p.x+" y:"+p.y);
@@ -235,57 +248,6 @@ game.drawLayer = (function() {
       // console.log('point ' + d.x + ' ' + d.y);
       drawPingPoint(d);
     });
-    return;
-    cxt.putImageData(
-      pingImgData,
-      boardWidth - kPingRange * 2,
-      boardHeight - kPingRange * 2
-    );
-    cxt.fillStyle = "black";
-    cxt.beginPath();
-    cxt.arc(
-      boardWidth - kPingRange,
-      boardHeight - kPingRange,
-      kPingRange,
-      0,
-      Math.PI / 2
-    );
-    cxt.lineTo(boardWidth, boardHeight);
-    cxt.lineTo(boardWidth, boardHeight - kPingRange);
-    cxt.fill();
-    cxt.beginPath();
-    cxt.arc(
-      boardWidth - kPingRange,
-      boardHeight - kPingRange,
-      kPingRange,
-      Math.PI / 2,
-      Math.PI
-    );
-    cxt.lineTo(boardWidth - 2 * kPingRange, boardHeight);
-    cxt.lineTo(boardWidth - kPingRange, boardHeight);
-    cxt.fill();
-    cxt.beginPath();
-    cxt.arc(
-      boardWidth - kPingRange,
-      boardHeight - kPingRange,
-      kPingRange,
-      Math.PI,
-      3 * (Math.PI / 2)
-    );
-    cxt.lineTo(boardWidth - 2 * kPingRange, boardHeight - 2 * kPingRange);
-    cxt.lineTo(boardWidth - 2 * kPingRange, boardHeight - kPingRange);
-    cxt.fill();
-    cxt.beginPath();
-    cxt.arc(
-      boardWidth - kPingRange,
-      boardHeight - kPingRange,
-      kPingRange,
-      3 * (Math.PI / 2),
-      0
-    );
-    cxt.lineTo(boardWidth, boardHeight - 2 * kPingRange);
-    cxt.lineTo(boardWidth - kPingRange, boardHeight - 2 * kPingRange);
-    cxt.fill();
   };
   var drawLosingMessage = function() {
     //console.log('loosing message');
@@ -310,9 +272,24 @@ game.drawLayer = (function() {
     drawMoveTrails();
     drawPing();
     drawQueen();
+    drawMessage();
     drawGold(cachedGold);
     drawLeaderBoard(cachedLeaderBoard);
     drawPingMap();
+    drawSelectionSquare();
+  };
+  var drawSelectionSquare = function() {
+    if (startXpoint !== null) {
+      cxt.save();
+      cxt.strokeStyle = "white";
+      cxt.strokeRect(
+        startXpoint,
+        startYpoint,
+        Math.abs(startXpoint - endPoint.x),
+        Math.abs(startYpoint - endPoint.y)
+      );
+      cxt.restore();
+    }
   };
   var beginPan = function(e) {
     //console.log('beginPan');
@@ -326,6 +303,8 @@ game.drawLayer = (function() {
     startYcenter = layout.origin.y;
     startXpoint = e.pageX;
     startYpoint = e.pageY;
+    endPoint.x = e.pageX;
+    endPoint.y = e.pageY;
     select = "none";
     if (e.shiftKey) {
       select = "shift";
@@ -364,7 +343,7 @@ game.drawLayer = (function() {
       }
       layout.origin.x += diffX;
       layout.origin.y += diffY;
-      drawBoard();
+      // drawBoard();
       // multiply by negative 1 ,  because the x and y center points
       // are how far the window has moved ,  so when you drag the
       // the window right ,  increasing xcenter ,  you are showing
@@ -378,6 +357,8 @@ game.drawLayer = (function() {
     } else {
       cxt.putImageData(canvasImage, 0, 0);
       cxt.strokeStyle = "white";
+      endPoint.x = e.pageX;
+      endPoint.y = e.pageY;
       cxt.strokeRect(
         startXpoint,
         startYpoint,
@@ -398,15 +379,10 @@ game.drawLayer = (function() {
     $("#GameBoard").off("mousemove");
     if (select === "shift" || select === "control") {
       cxt.putImageData(canvasImage, 0, 0);
-      //	    var startPoint =findHex({pageX:startXpoint, pageY:startYpoint});
-      //           var startXInHex = hPxToHex(startXpoint);
-      //            var startYInHex = vPxToHex(startYpoint);
-      //	    var endPoint = findHex(e);
-      //            var endXInHex   = hPxToHex(Math.abs(startXpoint-e.pageX));
-      //            var endYInHex   = vPxToHex(Math.abs(startYpoint-e.pageY));
       radio(
         "request-hex-in-square"
       ).broadcast({ x: startXpoint + layout.origin.x, y: startYpoint + layout.origin.y, width: Math.abs(startXpoint - e.pageX), height: Math.abs(startYpoint - e.pageY), select: select });
+      startXpoint = null;
     }
   };
 
@@ -421,7 +397,7 @@ game.drawLayer = (function() {
     if (key === "w") {
       radio("move").broadcast("north");
     }
-    if (key === "s" ) {
+    if (key === "s") {
       radio("move").broadcast("south");
     }
     if (key === "a") {
@@ -442,67 +418,67 @@ game.drawLayer = (function() {
     console.log("e : " + e.which);
     if (e.key === "W" || e.key === "w" || e.which === 38) {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('north');
-          }else{
-            keyQ.push("w");
-            allowRecenter = true;
-          }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("north");
+        } else {
+          keyQ.push("w");
+          allowRecenter = true;
+        }
       }
       return;
     }
     if (e.key === "S" || e.key === "s" || e.which === 40) {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('south');
-          }else{
-            keyQ.push("s");
-            allowRecenter = true;
-          }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("south");
+        } else {
+          keyQ.push("s");
+          allowRecenter = true;
+        }
       }
       return;
     }
     if (e.key === "A" || e.key === "a" || e.which === 37) {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('west');
-          }else{
-            keyQ.push("a");
-            allowRecenter = true;
-            }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("west");
+        } else {
+          keyQ.push("a");
+          allowRecenter = true;
+        }
       }
       return;
     }
     if (e.key === "D" || e.key === "d") {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('east');
-          }else{
-            keyQ.push("d");
-            allowRecenter = true;
-          }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("east");
+        } else {
+          keyQ.push("d");
+          allowRecenter = true;
+        }
       }
       return;
     }
     if (e.key === "Q" || e.key === "q") {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('up');
-          }else{
-            keyQ.push("q");
-            allowRecenter = true;
-          }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("up");
+        } else {
+          keyQ.push("q");
+          allowRecenter = true;
+        }
       }
       return;
     }
     if (e.key === "E" || e.key === "e" || e.which === 39) {
       if (keyQ.length === 0) {
-        if(e.shiftKey){
-          radio('move-cursor').broadcast('down');
-          }else{
-            keyQ.push("e");
-            allowRecenter = true;
-          }
+        if (e.shiftKey) {
+          radio("move-cursor").broadcast("down");
+        } else {
+          keyQ.push("e");
+          allowRecenter = true;
+        }
       }
       return;
     }
@@ -522,19 +498,20 @@ game.drawLayer = (function() {
       toggleQueen();
       return;
     }
-      if (e.key === "C" || e.key === "c") {
-          buildCity();
+    if (e.key === "C" || e.key === "c") {
+      buildCity();
       return;
-      }
-      if(e.key ==="Escape"){
-          radio("clear-selection").broadcast();
-          return;
-      }   
+    }
+    if (e.key === "Escape") {
+      radio("clear-selection").broadcast();
+      return;
+    }
     if (e.key === "X" || e.key === "x") {
       centerBoardOnQueen();
       return;
     }
     if (e.key === "P" || e.key === "p") {
+      pingImgData = [];
       radio("ping").broadcast();
       return;
     }
@@ -542,14 +519,14 @@ game.drawLayer = (function() {
       radio("toggle-marker").broadcast();
       return;
     }
-    if (e.key ==="j" || e.key === "j"){
-        radio('jump-next-marker').broadcast();
+    if (e.key === "j" || e.key === "j") {
+      radio("jump-next-marker").broadcast();
       return;
     }
-      if(e.key==="r" || e.key==="R"){
-          radio('recruit-troops').broadcast();
-          return;
-      }
+    if (e.key === "r" || e.key === "R") {
+      radio("recruit-troops").broadcast();
+      return;
+    }
     // debug keystrokes
     if (e.key === ";") {
       radio("dump-database").broadcast();
@@ -563,11 +540,14 @@ game.drawLayer = (function() {
       radio("dump-transactions").broadcast();
       return;
     }
-    if(e.shiftKey){return;}
-    if(e.ctrlKey){return;}
+    if (e.shiftKey) {
+      return;
+    }
+    if (e.ctrlKey) {
+      return;
+    }
     e.preventDefault();
-    radio('message').broadcast('unknown key pressed : ' + e.key);
-      
+    radio("message").broadcast("unknown key pressed : " + e.key);
   };
   var resolveClick = function(e) {
     if (dontClick) {
@@ -790,19 +770,23 @@ game.drawLayer = (function() {
   var distanceToEdge = function(record) {
     var h = record.h;
     var point = HexLib.hex_to_pixel(layout, h);
-    var windowPoint={x:point.x-layout.origin.x, y:point.y - layout.origin.y};
+    var windowPoint = {
+      x: point.x - layout.origin.x,
+      y: point.y - layout.origin.y
+    };
     var northEdge = 0;
     var southEdge = boardHeight;
     var westEdge = 0;
     var eastEdge = boardWidth;
-    var dNorth = windowPoint.y / ((Math.sqrt(3)/2)*layout.size.y);
-    var dSouth = (southEdge - windowPoint.y ) / ((Math.sqrt(3)/2)*layout.size.y);
-    var dEast = windowPoint.x / (layout.size.x*2);
-    var dWest = (boardWidth - windowPoint.x) / (layout.size.x*2);
-//    console.log("at : "+windowPoint.x+"  "+windowPoint.y);
-//    console.log("origin : "+layout.origin.x+" "+layout.origin.y);
-//    console.log("dN:"+dNorth+" dS:"+dSouth+" dE:"+dEast+" dW:"+dWest);
-//    console.log("min distance is :"+ Math.min(dNorth, dSouth, dEast, dWest));
+    var dNorth = windowPoint.y / (Math.sqrt(3) / 2 * layout.size.y);
+    var dSouth = (southEdge - windowPoint.y) /
+      (Math.sqrt(3) / 2 * layout.size.y);
+    var dEast = windowPoint.x / (layout.size.x * 2);
+    var dWest = (boardWidth - windowPoint.x) / (layout.size.x * 2);
+    //    console.log("at : "+windowPoint.x+"  "+windowPoint.y);
+    //    console.log("origin : "+layout.origin.x+" "+layout.origin.y);
+    //    console.log("dN:"+dNorth+" dS:"+dSouth+" dE:"+dEast+" dW:"+dWest);
+    //    console.log("min distance is :"+ Math.min(dNorth, dSouth, dEast, dWest));
     return Math.min(dNorth, dSouth, dEast, dWest);
   };
 
@@ -827,7 +811,7 @@ game.drawLayer = (function() {
     if (record.UID === game.uid()) {
       // if the selected hex gets near the edge, and we are allowed
       // to recenter, and if we are selected.
-      if(record.Cursor){
+      if (record.Cursor) {
         if (distanceToEdge(record) < 2 && allowRecenter) {
           allowRecenter = false;
           //console.log("Recentering");
@@ -886,24 +870,23 @@ game.drawLayer = (function() {
       cxt.fillStyle = "black";
       cxt.fillText(record.A, point.x - 8, point.y + 7);
     }
-   if(record.Marker) {
-       cxt.font = "12px san-serif";
-       cxt.fillStyle = "black";
-       cxt.fillText("F", point.x - 8, point.y + 7);
-   }
-   if(record.Cursor){
-     drawCursor(record.h);
-   }
+    if (record.Marker) {
+      cxt.font = "12px san-serif";
+      cxt.fillStyle = "black";
+      cxt.fillText("F", point.x - 8, point.y + 7);
+    }
+    if (record.Cursor) {
+      drawCursor(record.h);
+    }
     cxt.restore();
   };
-  var drawCursor=function(h){
+  var drawCursor = function(h) {
     var point = HexLib.hex_to_pixel_windowed(layout, h);
     cxt.save();
-    cxt.strokeStyle='green';
-    cxt.arc(point.x,point.y,layout.size.x*0.75 ,0, Math.PI*2,false);
+    cxt.strokeStyle = "green";
+    cxt.arc(point.x, point.y, layout.size.x * 0.75, 0, Math.PI * 2, false);
     cxt.stroke();
     cxt.restore();
-    
   };
   var drawTerain = function(type, h) {
     var point = HexLib.hex_to_pixel_windowed(layout, h);
@@ -994,14 +977,18 @@ game.drawLayer = (function() {
       }
     }
   };
-  var drawMessage = function(m) {
+
+  var saveMessage = function(m) {
+    message = m;
+  };
+  var drawMessage = function() {
     cxt.save();
     cxt.clearRect(250, 0, 500, 30);
     cxt.strokeStyle = "black";
     cxt.fillStyle = "black";
     cxt.font = "22px serif";
     cxt.strokeRect(0, 0, 250, 30);
-    cxt.fillText(m, 255, 20);
+    cxt.fillText(message, 255, 20);
     cxt.restore();
   };
   var findHex = function(e) {

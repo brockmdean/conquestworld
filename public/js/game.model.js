@@ -59,13 +59,6 @@ game.model = (function() {
     }
     return false;
   };
-  var matchRange = function(r, h) {
-    if (r.UID != 0) {
-      var d = HexLib.hex_distance(h, r.h);
-      return d < kPingRange;
-    }
-    return false;
-  };
   var matchCities = function(r) {
     return r.UID == game.uid() && r.C > 0;
   };
@@ -76,6 +69,7 @@ game.model = (function() {
   db.addIndex(matchTroopSites);
   db.addIndex(matchSelectedArmies);
   db.addIndex(matchSelected);
+  var leaderBoard = [];
   var moveDb;
   var gold = 2000;
   var kTroopLimit = 100;
@@ -83,7 +77,7 @@ game.model = (function() {
   var kCityCostIncr = 100;
   var kWallCost = 100;
   var kWallStrength = 100;
-    var kPingCost = 1;
+  var kPingCost = 1;
   var kPingRange = 100;
   var kPingRangeSquared = kPingRange * kPingRange;
   var trailsOn = false;
@@ -95,6 +89,7 @@ game.model = (function() {
   var playerMap = {};
   var updatedRecords = [];
   var cursorRecord;
+  var totalLeaderBoard = {};
   var dumpDatabase = function() {
     console.log("-------- dumpDatabase!!!!");
     db.print();
@@ -117,7 +112,7 @@ game.model = (function() {
         t = db.query({ hexID: HexLib.hexToId(neighborHexs[i]) });
         neighborRecords.push(t[0]);
       } else {
-//        console.log("adding a neighbor");
+        //        console.log("adding a neighbor");
         t = game.util.createRecord({ hexID: HexLib.hexToId(neighborHexs[i]) });
         //t.V=1;
         neighborRecords.push(t);
@@ -140,8 +135,7 @@ game.model = (function() {
     }
     db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
     cursorRecord.Cursor = 0;
-      //radio("draw-hexagon").broadcast(cursorRecord);
-
+    //radio("draw-hexagon").broadcast(cursorRecord);
     // console.log("game.model received toggle-selection message"+data.hexID);
     // console.log("count "+records.length);
     // assert that there is only one record
@@ -203,8 +197,8 @@ game.model = (function() {
         r.V = 1;
       }
 
-//      console.log("insert a new record from fb");
-//      game.util.printRecord(r);
+      //      console.log("insert a new record from fb");
+      //      game.util.printRecord(r);
       db.insert(r);
     } else {
       localR = db.query({ hexID: r.hexID });
@@ -240,7 +234,7 @@ game.model = (function() {
       // game.util.printRecord(queenR);
       // BUG once the queen has been removed this causes errors
       // because teh queen cant be found on line 243
-        if (queenR && r.hexID == queenR.hexID && r.UID !== game.uid()) {
+      if (queenR && r.hexID == queenR.hexID && r.UID !== game.uid()) {
         // we are updating the queen
         if (r.K == 0 && queenR.K == 1) {
           // we died.
@@ -249,13 +243,13 @@ game.model = (function() {
           //myCities = db.matchCities();
           //newOwner = r.UID;
           //rDB.openTransaction();
-         // myCities.forEach(function(_r) {
-         //   _r.UID = newOwner;
-         //   _r.V = 0;
-         //   rDB.pushUpdate(_r);
-         // });
-         // rDB.closeTransaction();
-         // radio("losing-message").broadcast();
+          // myCities.forEach(function(_r) {
+          //   _r.UID = newOwner;
+          //   _r.V = 0;
+          //   rDB.pushUpdate(_r);
+          // });
+          // rDB.closeTransaction();
+          // radio("losing-message").broadcast();
         }
       }
       db.update(r);
@@ -306,8 +300,8 @@ game.model = (function() {
         done = true;
       }
     } while (!done);
-    //console.log('creating king at x:' + x + ' y:' + y + ' z:'+ z);
-    //console.log('ocnstraint x+y+z= 0 :'+ (x+y+z));
+    console.log("creating king at x:" + x + " y:" + y + " z:" + z);
+    console.log("ocnstraint x+y+z= 0 :" + (x + y + z));
     var h = HexLib.Hex(x, y, z);
     var r = game.util.createRecord({
       UID: game.uid(),
@@ -320,17 +314,17 @@ game.model = (function() {
     });
     cursorRecord = r;
     //db.insert(r);
-      rDB.pushUpdate(r);
-      rDB.updatePingList(r);
+    rDB.pushUpdate(r);
+    rDB.updatePingList(r);
     radio("center-on-queen").broadcast(h, true);
-      radio("launch-complete").broadcast();
-//      for (let i =0 ; i<5 ; i++){
-//          
-//          let  m = game.util.createRecord({hexID:x + "_" + (y+2+i) + "_" + (z-2-i), M:1});
-//          //rDB.pushUpdate(m);
-//          rDB.updateWorldCoordinate(m);
-//
-//      }
+    radio("launch-complete").broadcast();
+    //      for (let i =0 ; i<5 ; i++){
+    //
+    //          let  m = game.util.createRecord({hexID:x + "_" + (y+2+i) + "_" + (z-2-i), M:1});
+    //          //rDB.pushUpdate(m);
+    //          rDB.updateWorldCoordinate(m);
+    //
+    //      }
   };
   var queenLocation = function() {
     var rs = db.matchQueen();
@@ -342,10 +336,14 @@ game.model = (function() {
     // make some mountians
     for (var i = 0; i < 3600; i++) {
       var x = game.util.getRandomIntInclusive(0, 300);
-        var y = game.util.getRandomIntInclusive(0, 300);
-        var z = -x - y;
-        var h = HexLib.Hex(x,y,z);
-        var r = game.util.createRecord({hexID:x+"_"+y+"_"+z,M:game.util.getRandomIntInclusive(1,2),h:h});
+      var y = game.util.getRandomIntInclusive(0, 300);
+      var z = -x - y;
+      var h = HexLib.Hex(x, y, z);
+      var r = game.util.createRecord({
+        hexID: x + "_" + y + "_" + z,
+        M: game.util.getRandomIntInclusive(1, 2),
+        h: h
+      });
       rDB.updateWorldCoordinate(r);
     }
   };
@@ -370,48 +368,64 @@ game.model = (function() {
     // update gold for occupied land
     var records = db.myHex();
     var newGold = records.length;
+    var score = 0;
+    records.forEach(function(r) {
+      score += r.A;
+    });
+    var UID = game.uid();
+    rDB.updateLeaderBoard({ UID: UID, score: score });
+    radio("draw-leader-board").broadcast(leaderBoard);
     //console.log("new gold :"+newGold);
     gold += newGold;
     radio("draw-gold").broadcast(gold);
     var troopSites = db.matchTroopSites();
     //console.log("troop sites "+troopSites.length);
     troopSites.forEach(generateNewTroop);
-    computeLeaderBoard();
   };
 
-  var computeLeaderBoard = function() {
-    var UIDpairs = [];
-    var leaderBoard;
-    // console.log("computeLeaderBoard");
-    var UIDsumArmys = db.sumAllUniqueField("UID", "A");
-    // console.log(UIDsumArmys);
-    var UIDs = Object.keys(UIDsumArmys);
-    UIDs.forEach(function(r) {
-      if (r != 0) {
-        UIDpairs.push({ UID: r, score: UIDsumArmys[r] });
-      }
+  var computeLeaderBoard = function(r) {
+    //console.log("computeLeaderBoard");
+    //console.log(r);
+    totalLeaderBoard[r.UID] = r.score;
+    var nextLeaderBoard = [];
+    var keys = Object.keys(totalLeaderBoard);
+    keys.forEach(function(k) {
+      nextLeaderBoard.push({
+        UID: k,
+        score: totalLeaderBoard[k],
+        name: playerMap[k]
+      });
     });
-
-    UIDpairs.sort(function(a, b) {
+    nextLeaderBoard.sort(function(a, b) {
       return b.score - a.score;
     });
-    // console.log(UIDpairs);
-    var myIndex = UIDpairs.findIndex(function(r) {
-      return r.UID == game.uid();
-    });
-
-    // collect the top 5 scores, but always include our score
-    if (myIndex > 4) {
-      leaderBoard = UIDpairs.slice(0, 4);
-      leaderBoard[4] = { UID: game.uid(), score: UIDsumArmys[game.uid()] };
+    let found = false;
+    var limit = Math.min(5, nextLeaderBoard.length);
+    var i;
+    if (nextLeaderBoard.length > 5) {
+      for (i = 0; i < 4; i++) {
+        if (nextLeaderBoard[i].UID === game.uid()) {
+          found = true;
+        }
+      }
+        if (!found) {
+            //console.log("not found");
+        nextLeaderBoard[4] = {
+          UID: game.uid(),
+          score: totalLeaderBoard[game.uid()],
+          name: playerMap[game.uid()]
+        };
+      }
+//        nextLeaderBoard.forEach(function(r) {
+//          console.log(r);
+//      });
+      leaderBoard = nextLeaderBoard.slice(0, 5);
     } else {
-      leaderBoard = UIDpairs.slice(0, 5);
+      leaderBoard = nextLeaderBoard;
     }
-    leaderBoard.forEach(function(r) {
-      r.name = playerMap[r.UID];
-    });
-    // console.log(leaderBoard);
-    radio("draw-leader-board").broadcast(leaderBoard);
+//    leaderBoard.forEach(function(r) {
+//      console.log(r);
+//    });
   };
   var totalCityCost;
   var totalCitiesBuilt;
@@ -596,17 +610,17 @@ game.model = (function() {
     // updatedRecords.forEach(rDB.pushUpdate);
     // rDB.closeTransaction();
     // updatedRecords=[];
-    console.log("drew : " + window.neighborDrawing);
-    console.log("update : " + window.updateCount);
-    console.log("update work : " + window.updateWorkCount);
+    //console.log("drew : " + window.neighborDrawing);
+    //console.log("update : " + window.updateCount);
+    //console.log("update work : " + window.updateWorkCount);
   };
   var moveQueen = function(dir) {
     // var records = db.query(matchQueen);
-      var record = db.matchQueen()[0];
-      var r = Object.assign({},record);
+    var record = db.matchQueen()[0];
+    var r = Object.assign({}, record);
     // game.util.printRecord(record);
-      var tr = getTarget(dir, record);
-      var targetRecord= Object.assign({},tr);
+    var tr = getTarget(dir, record);
+    var targetRecord = Object.assign({}, tr);
     if (targetRecord.M) {
       return;
     }
@@ -617,19 +631,19 @@ game.model = (function() {
       //            db.update({hexID: r.hexID, K: 0});
       r.K = 0;
     } else {
-     // db.update({ hexID: r.hexID, K: 0, UID: 0 });
+      // db.update({ hexID: r.hexID, K: 0, UID: 0 });
       r.K = 0;
       r.UID = 0;
     }
     //if the queen is moving , keep the cursor with her.
-      //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-      r.Cursor=0;
+    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
+    r.Cursor = 0;
     cursorRecord = targetRecord;
     //db.update(r);
-      //db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
-      targetRecord.K=1;
-      targetRecord.UID=game.uid();
-      targetRecord.Cursor=1;
+    //db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
+    targetRecord.K = 1;
+    targetRecord.UID = game.uid();
+    targetRecord.Cursor = 1;
     rDB.pushUpdate(r);
     rDB.pushUpdate(targetRecord);
   };
@@ -929,9 +943,9 @@ game.model = (function() {
       });
     }
 
-      records.forEach(function(r) {
-    //keep this one 
-    radio("draw-hexagon").broadcast(r);
+    records.forEach(function(r) {
+      //keep this one
+      radio("draw-hexagon").broadcast(r);
     });
   };
   var ping = function() {
@@ -956,52 +970,57 @@ game.model = (function() {
       return;
     }
     //console.log('ping origin ' + HexLib.hexToId(h));
-      rDB.getPingData(function(data){
-          createPingData(data,h);
-                                    });
-    gold -= kPingCost ;
+    rDB.getPingData(
+      function(data) {
+        createPingData(data, h);
+      },
+      h
+    );
+    gold -= kPingCost;
     // kPingCost;
     radio("draw-gold").broadcast(gold);
   };
-    var createPingData = function(pingData,h) {
-        //filter to hexes within 100
-//        console.log("createPingData");
-//        console.log(h);
-        h.UID=game.uid();
-      var finalPing=[];
-      pingData.forEach(function(r){
-          if(HexLib.hex_distance(r,h)< kPingRange){              
-              let id = r.UID;
-              r=HexLib.hex_subtract(r,h);
-              r.UID=id;
-              finalPing.push(r);
-          }
-      });
-        finalPing.push(h);
+  var createPingData = function(pingData, h) {
+    //filter to hexes within 100
+    //        console.log("createPingData");
+    //        console.log(h);
+    h.UID = game.uid();
+    var finalPing = [];
+    pingData.forEach(function(r) {
+      if (HexLib.hex_distance(r, h) < kPingRange) {
+        let id = r.UID;
+        r = HexLib.hex_subtract(r, h);
+        r.UID = id;
+        finalPing.push(r);
+      }
+    });
+    finalPing.push(h);
     radio("ping-data").broadcast(finalPing);
   };
   var addPlayerNameToList = function(r) {
     playerMap[r.UID] = r.name;
   };
-    var totalNewTroops;
+  var totalNewTroops;
   var recruitTroops = function() {
-    totalNewTroops=0;
-//    console.log("recruitTroops");
+    totalNewTroops = 0;
+    //    console.log("recruitTroops");
     var troopSites = db.matchTroopSites();
     troopSites.forEach(recruitCity);
-      radio("draw-gold").broadcast(gold);
-      radio('message').broadcast("Recruited "+totalNewTroops+" for "+totalNewTroops+" gold");
+    radio("draw-gold").broadcast(gold);
+    radio("message").broadcast(
+      "Recruited " + totalNewTroops + " for " + totalNewTroops + " gold"
+    );
   };
   var recruitCity = function(r) {
-//    console.log("recruitCity");
+    //    console.log("recruitCity");
     var a = r.A;
     var diff = kTroopLimit - a;
     if (gold < diff) {
       return;
     }
-      gold -= diff;
-      totalNewTroops+=diff;
-      
+    gold -= diff;
+    totalNewTroops += diff;
+
     var newR = Object.assign({}, r);
     newR.A = kTroopLimit;
     rDB.pushUpdate(newR);
@@ -1013,7 +1032,8 @@ game.model = (function() {
     rDB.initModule(
       { location: game.world() + "/updates", callback: update },
       { location: game.world() + "/users", callback: addPlayerNameToList },
-      { location: game.world() + "/world"}
+      { location: game.world() + "/world" },
+      { location: game.world() + "/leaderBoard", callback: computeLeaderBoard }
     );
 
     rDB.pushUser({ UID: game.uid(), name: playerName });
@@ -1021,8 +1041,8 @@ game.model = (function() {
     // TODO spawn the king away from everyone else.
     //initializeWorld();
     //      rDB.tryUpdate();
-      //rDB.joinWorld(createKing);
-    createKing();
+    //rDB.joinWorld(createKing);
+    setTimeout(createKing, 1000);
     updateIntervalID = setInterval(oneSecondUpdate, 1000);
     //setTimeout(oneSecondUpdate,10000);
     radio("toggle-selection").subscribe(toggleSelection);
@@ -1060,7 +1080,7 @@ game.model = (function() {
       marked = record.Marker;
       if (marked == 1) {
         marked = 0;
-        let index = markerRing.find(function(e) {
+        let index = markerRing.findIndex(function(e) {
           return e === record.hexID;
         });
         markerRing.splice(index, 1);
@@ -1076,8 +1096,8 @@ game.model = (function() {
     }
   };
   var jumpNextMarker = function() {
-    //console.log('marker ring');
-    //console.log(markerRing);
+    console.log('marker ring');
+    console.log(markerRing);
     var m = markerRing.shift();
     markerRing.push(m);
     //console.log(m);

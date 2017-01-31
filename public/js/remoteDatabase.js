@@ -24,7 +24,8 @@ var remoteDatabase = (function() {
     var transactionID = "";
     var processRecordCallback;
     var processUserCallback;
-    var processWorldCallback;
+      var processWorldCallback;
+      var leaderBoardCallback;
     var transactions = {};
     var outputQueue = [];
     var lastTransaction;
@@ -163,7 +164,7 @@ var remoteDatabase = (function() {
       //    }
       //}
     };
-    var initModule = function(update, user, worldState) {
+      var initModule = function(update, user, worldState,leaderBoard) {
       fbDatabase = firebase.database();
 
       globalUpdatesRef = fbDatabase.ref(update.location);
@@ -174,14 +175,26 @@ var remoteDatabase = (function() {
       //globalUpdatesRef.on('child_added', processRecord);
       usersRef = fbDatabase.ref(user.location);
       processUserCallback = user.callback;
-      usersRef.on("child_added", processUser);
-
+        usersRef.on("child_added", processUser);
+        
+        fbDatabase.ref(game.world()+"/pingRequest").on('child_added',processPingRequest);
         worldStateLocation = worldState.location;
         netWorker = new Worker('js/updateWorker.js');
         netWorker.onmessage=processRecord;
-        netWorker.postMessage({data:game.world(),type:'world'});
+          netWorker.postMessage({data:game.world(),type:'world'});
+          console.log(leaderBoard);
+          leaderBoardCallback = leaderBoard.callback;
+          fbDatabase.ref(leaderBoard.location).on('child_added',processLeaderBoard);
+          fbDatabase.ref(leaderBoard.location).on('child_changed',processLeaderBoard);
     };
 
+      var processLeaderBoard = function(s){
+          //console.log("processLeaderBoard");
+          //console.log(s.key+"  "+s.val());
+          var score = s.val();
+          var uid =s.key;
+          leaderBoardCallback({UID: uid, score: score});
+      };
     // writer functions
     // public
     var openTransaction = function() {
@@ -255,15 +268,56 @@ var remoteDatabase = (function() {
           h.UID= r.UID;
           fbDatabase.ref(game.world()+"/pingList/"+r.UID).set(h);
       };
-      var getPingData = function(callback){
-          fbDatabase.ref(game.world()+"/pingList/").once('value',function(s){parsePingData(s,callback);});
+      var pingOrigin;
+      var getPingData = function(callback,h){
+          //this will get the queens for players who have left the game.
+          pingOrigin=h;
+          fbDatabase.ref(game.world()+"/pingList/").once('value',function(s){parseQueenList(s);});
+          //get rid of the old lists
+          fbDatabase.ref(game.world()+"/pingRequest/"+game.uid()).remove();
+          fbDatabase.ref(game.world()+"/"+game.uid()).off();          
+          fbDatabase.ref(game.world()+"/"+game.uid()).remove();
+          //make a new request and listen for the responses.
+          fbDatabase.ref(game.world()+"/pingRequest/"+game.uid()).set(h);
+          fbDatabase.ref(game.world()+"/"+game.uid()).on('child_added',parsePingPoint);
+          
       };
-      var parsePingData = function(s,callback){
-          var pingData = [];
+      var parseQueenList = function(s){
           s.forEach(function(childS){
-              pingData.push(childS.val());
+              if(HexLib.hex_distance(childS.val(),pingOrigin) < 100){
+                  sendPingPoint(childS.val());
+              }
           });
-          callback(pingData);
+      };
+      var parsePingPoint = function(s){
+          var h = s.val();
+          sendPingPoint(h);
+      };
+      var sendPingPoint = function(h){
+          var uid = h.UID;
+          h=HexLib.hex_subtract(h,pingOrigin);
+          h.UID = uid;
+          radio('ping-data-point').broadcast(h);
+      };
+      var matchRange = function(r, h) {
+          if (r.UID != 0) {
+              var d = HexLib.hex_distance(h, r.h);
+              return d < 100;
+          }
+          return false;
+      };
+
+      var processPingRequest = function(s){
+          console.log("processPingRequest");
+          var pingUID = s.key;
+          var h = s.val();
+          var records = lDb.query(function(r){return matchRange(r,h);});
+          var ref = fbDatabase.ref(game.world()+"/"+pingUID);
+          records.forEach(function(r){
+              let h = Object.assign({},r.h);
+              h.UID= r.UID;              
+              ref.push(h);
+          });
       };
     var readUpdates = function() {
       if (lastTransaction) {
@@ -505,6 +559,9 @@ var remoteDatabase = (function() {
       s += "<BR>";
       //  $("#recieved").append(s);
     };
+      var updateLeaderBoard  = function(update){
+          fbDatabase.ref(game.world()+"/leaderBoard/"+update.UID).set(update.score);
+      };
     return {
       initModule: initModule,
       openTransaction: openTransaction,
@@ -518,7 +575,8 @@ var remoteDatabase = (function() {
       closeTransaction: closeTransaction,
       bandwidth: bandwidth,
       tryUpdate: tryUpdate,
-      setLDB: setLDB,
+        setLDB: setLDB,
+        updateLeaderBoard : updateLeaderBoard,
       join: join
     };
   };

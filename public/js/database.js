@@ -53,6 +53,7 @@ database = (function(){
         readWorld             : remoteDb.readWorld,
         closeTransaction      : remoteDb.closeTransaction,
         bandwidth             : remoteDb.bandwidth,
+        updateLeaderBoard     : remoteDb.updateLeaderBoard,
 
 	joinWorld : joinWorld
     }

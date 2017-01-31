@@ -102,7 +102,7 @@ var game = (function() {
   };
   var base64 = "0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
   var getID = function() {
-    var array = new Uint8Array(6);
+    var array = new Uint8Array(8);
     window.crypto.getRandomValues(array);
     var idA = [];
     var id = "";
@@ -112,7 +112,7 @@ var game = (function() {
       idA.push(base64.substr(r, 1));
     }
 
-    return id.concat(idA[0], idA[1], idA[2], idA[3], idA[4], idA[5]);
+      return id.concat(idA[0], idA[1], idA[2], idA[3], idA[4], idA[5],idA[6],idA[7]);
   };
 
   var initModule = function($container) {
