@@ -63,7 +63,21 @@ game.drawLayer = (function() {
   var queen = {};
   queen.x = 110;
   queen.y = 35;
-  queen.width = 30;
+    queen.width = 30;
+    var leaderBoardArea={};
+    var messageArea={};
+    messageArea.x=250;
+    messageArea.y=0;
+    messageArea.width=500;
+    messageArea.height=30;
+    var controlArea={};
+    controlArea.x = 0;
+    controlArea.y= 0;
+    controlArea.width = 200;
+    controlArea.height = 70;
+    var pingArea={};
+        
+    
   var queenOn = false;
   var trailsOn = false;
   var colorList = [
@@ -136,6 +150,11 @@ game.drawLayer = (function() {
       x: (-1) * (boardWidth - 95),
       y: (-1) * (boardHeight - Math.sqrt(3) * 95 / 2)
     });
+      pingArea.x=boardWidth-200;
+    pingArea.y=boardHeight-175;
+    pingArea.width=200;
+      pingArea.height=175;
+
     pingLayout.origin.x = boardWidth - 200;
     pingLayout.origin.y = boardHeight - 200;
     boardWidthInHex = hPxToHex(boardWidth);
@@ -166,7 +185,7 @@ game.drawLayer = (function() {
       function() {
         centerBoard(null, true);
       },
-      150
+      100
     );
   };
   var centerBoardOnQueen = function() {
@@ -696,7 +715,9 @@ game.drawLayer = (function() {
     cachedLeaderBoard = data;
     // map uid to names here.
     // cachedLeaderBoard.forEach(function(r){r.name = data.p[r.UID]});
-    // console.log(cachedLeaderBoard);
+      // console.log(cachedLeaderBoard);
+
+      //TODO move this out of the function. 
     var leaderWidth = 300;
     var leaderHeight = 100;
     var topLeft = {};
@@ -704,7 +725,12 @@ game.drawLayer = (function() {
     var nameHeight = leaderHeight / 5;
     var nameWidth = 200;
     var scoreWidth = leaderWidth - nameWidth;
-    topLeft.y = 0;
+      topLeft.y = 0;
+      leaderBoardArea.x=topLeft.x;
+      leaderBoardArea.y=topLeft.y;
+      leaderBoardArea.width =300;
+      leaderBoardArea.height = 100;
+      /////////////////
     cxt.font = "17px serif";
     cxt.fillStyle = "black";
     cxt.strokeStyle = "black";
@@ -736,7 +762,7 @@ game.drawLayer = (function() {
     cxt.restore();
   };
   var drawGold = function(gold) {
-    // cxt.strokeStyle='white';
+      cxt.save();
     cachedGold = gold;
     cxt.clearRect(0, 0, 200, 30);
     cxt.strokeStyle = "black";
@@ -744,12 +770,12 @@ game.drawLayer = (function() {
     cxt.font = "22px serif";
     cxt.strokeRect(0, 0, 200, 30);
     cxt.fillText("gold : " + gold, 5, 20);
-
-    drawBuildCity();
-    drawBuildWall();
-    drawMoveTrails();
-    drawQueen();
-    drawPing();
+      cxt.restore();
+   // drawBuildCity();
+   // drawBuildWall();
+   // drawMoveTrails();
+   // drawQueen();
+    //drawPing();
   };
   var onScreen = function(record) {
     //console.log("onScreen origin x:"+layout.origin.x+ " y:"+layout.origin.y);
@@ -805,6 +831,11 @@ game.drawLayer = (function() {
       drawHexagonBackground(record.h, "black");
       return;
     }
+      //don't draw over the leaderboard etc ... 
+      if(overlap(record.h,leaderBoardArea)){return;};
+      if(overlap(record.h,messageArea)){return;};
+      if(overlap(record.h,controlArea)){return;};
+      if(overlap(record.h,pingArea)){return;};
     // console.log("Xcenter "+XcenterHex+ " Ycenter "+YcenterHex);
     // console.log("recordx "+record.x+" recordY "+record.y);
     // console.log("--------");
@@ -981,7 +1012,8 @@ game.drawLayer = (function() {
   var saveMessage = function(m) {
     message = m;
   };
-  var drawMessage = function() {
+    var drawMessage = function() {
+        
     cxt.save();
     cxt.clearRect(250, 0, 500, 30);
     cxt.strokeStyle = "black";
@@ -991,6 +1023,28 @@ game.drawLayer = (function() {
     cxt.fillText(message, 255, 20);
     cxt.restore();
   };
+    var overlap = function(h,area){
+        
+          var p = HexLib.hex_to_pixel_windowed(layout,h);
+          if( p.x > area.x && p.x < area.x+ area.width &&
+              p.y > area.y && p.y < area.y+area.height)
+          {
+              return true;
+          }
+          return false;
+    };
+    var overlapHex = function(h,area){
+        var p = HexLib.hex_to_pixel_windowed(layout,h);
+        var c = HexLib.hex_to_pixel_windowed(pingFrameLayout,HexLib.Hex(0,0,0));
+        var d = Math.sqrt(Math.pow(p.x-c.x,2)- Math.pow(p.y-c.y,2));
+        console.log(p);
+        console.log(c);
+        console.log(d);
+        if(d < area.r){
+            return true;
+        }
+        return false;
+    };
   var findHex = function(e) {
     var offset = $("#GameBoard").offset();
     var found = false;
