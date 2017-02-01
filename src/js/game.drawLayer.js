@@ -559,6 +559,10 @@ game.drawLayer = (function() {
       radio("dump-transactions").broadcast();
       return;
     }
+    if (e.key === "h" || e.key === "H") {
+      radio("help").broadcast();
+      return;
+    }
     if (e.shiftKey) {
       return;
     }

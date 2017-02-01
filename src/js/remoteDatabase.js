@@ -198,7 +198,7 @@ var remoteDatabase = (function() {
     // writer functions
     // public
     var openTransaction = function() {
-      transactionID = uuid();
+//      transactionID = uuid();
       writeSeq = 0;
     };
 
