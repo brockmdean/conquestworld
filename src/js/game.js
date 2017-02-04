@@ -25,7 +25,7 @@ var game = (function() {
     "Movement keys q,w,e,a,s,d will move selected armies in the 6 directions.<BR>" +
     "arrow keys : Move a selected armies in 4 of the 6 directions.<BR>" +
     '1 : Build a city, cost starts at 100 gold, current cost is displayed in 100s. or click "C" button. or press c key.<BR>' +
-    '2 : Build a wall, costs 50 gold. walls take 100 troops to breach or click "W" button.<BR>' +
+    '2 : Build a wall, costs 500 gold. walls take 100 troops to breach or click "W" button.<BR>' +
     "3 : Toggle Trail. <BR>" +
     '4 : Enable Queen movement or click "Q" button.<BR>' +
     "escape : Clear all selected armies.<BR>" +
@@ -33,10 +33,12 @@ var game = (function() {
     "x : Recenter the map on the Queen.<BR>" +
     "m : Drop a marker.<BR>" +
     "j : Jump to the next marker in a ring fashion.<BR>" +
-    "r : recruit armies in your cities. cost is 1 gold per troop.<BR>" +
+      "r : recruit armies in your cities. cost is 1 gold per troop.<BR>" +
+      "h: help<BR>"+
+      "+- : zoom in and zoom out<BR>"+
     "Click to select  a tile.<BR>" +
     "Shift click and drag to select multiple armies.<BR>" +
-    "Control click and drag to select multiple empty.<BR></span> ";
+    "Control click and drag to select multiple empty hexes.<BR></span> ";
 
     var modal ='<div class="help-modal" id="help">'+
         '<div class="help-content">'+
@@ -53,9 +55,11 @@ var game = (function() {
         "m : Drop a marker.<BR>" +
         "j : Jump to the next marker in a ring fashion.<BR>" +
         "r : recruit armies in your cities. cost is 1 gold per troop.<BR>" +
+      "h: help<BR>"+
+      "+- : zoom in and zoom out<BR>"+
         "Click to select  a tile.<BR>" +
         "Shift click and drag to select multiple armies.<BR>" +
-        "Control click and drag to select multiple empty.<BR> "+
+        "Control click and drag to select multiple empty hexes.<BR> "+
         '</div></div>';
     
   var visibility = function() {

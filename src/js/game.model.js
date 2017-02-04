@@ -75,8 +75,10 @@ game.model = (function() {
   var kTroopLimit = 100;
   var kCityCost = 100;
   var kCityCostIncr = 100;
-  var kWallCost = 100;
-  var kWallStrength = 100;
+  var kWallCost = 500;
+    var kWallStrength = 100;
+    var kWallCostInc = 10;
+    var kAllowStrongerWalls= false;
   var kPingCost = 5000;
   var kPingRange = 100;
   var kPingRangeSquared = kPingRange * kPingRange;
@@ -512,29 +514,36 @@ game.model = (function() {
     var thisWallCost = 1;
     var wallStrength = record.W;
     var exp = Math.floor(wallStrength / 100);
-    for (let i = 0; i < exp; i++) {
-      thisWallCost *= 2;
-    }
-    thisWallCost *= kWallCost;
-    if (
-      record.A == 0 &&
-        record.K == 0 &&
-        record.M == 0 &&
-        record.C == 0 &&
-        gold >= thisWallCost
-    ) {
-      totalWallsBuilt++;
-      totalWallCost += thisWallCost;
-      gold -= thisWallCost;
-      rDB.pushUpdate(
-        game.util.createRecord({
-          hexID: record.hexID,
-          W: kWallStrength + record.W,
-          UID: game.uid()
-        })
-      );
-      radio("draw-gold").broadcast(gold);
-    }
+      if(kAllowStrongerWalls){
+          for (let i = 0; i < exp; i++) {
+              thisWallCost *= 2;
+          }
+          thisWallCost *= kWallCost;
+      }else{
+          if(wallStrength){return;}
+          kWallCost += kWallCostInc;
+          thisWallCost = kWallCost;
+      }
+      if (
+          record.K == 0 &&
+              record.M == 0 &&
+              record.C == 0 &&
+              gold >= thisWallCost
+      ) {
+          radio("update-wall-cost").broadcast(kWallCost);
+          totalWallsBuilt++;
+          totalWallCost += thisWallCost;
+          gold -= thisWallCost;
+          rDB.pushUpdate(
+              game.util.createRecord({
+                  hexID: record.hexID,
+                  A: record.A,
+                  W: kWallStrength + record.W,
+                  UID: game.uid()
+              })
+          );
+          radio("draw-gold").broadcast(gold);
+      }
   };
   var geoSort = function(dir) {
     if (dir == "down") {
@@ -937,7 +946,7 @@ game.model = (function() {
     }
     if (square.select === "control") {
       records.forEach(function(r) {
-        if (r.A == 0 && r.C === 0 && r.K === 0 && r.M === 0) {
+        if (r.A == 0 && r.C === 0 && r.K === 0 && r.M === 0 && r.W===0) {
           db.update({ hexID: r.hexID, S: 1 });
         }
       });

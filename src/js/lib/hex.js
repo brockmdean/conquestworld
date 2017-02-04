@@ -198,21 +198,22 @@ var pixel_to_hex = function (layout, p)
     return Hex(q, r, -q - r);
 }
 
-var hex_corner_offset = function (layout, corner)
-{
+    var hex_corner_offset = function (layout, corner,scale)
+    {
+        if(!scale){ scale = 1;}
     var M = layout.orientation;
     var size = layout.size;
     var angle = 2.0 * Math.PI * (M.start_angle - corner) / 6;
-    return Point(size.x * Math.cos(angle), size.y * Math.sin(angle));
+    return Point(size.x*scale * Math.cos(angle), size.y* scale * Math.sin(angle));
 }
 
-var polygon_corners = function (layout, h)
+    var polygon_corners = function (layout, h,scale)
 {
     var corners = [];
     var center = hex_to_pixel_windowed(layout, h);
     for (var i = 0; i < 6; i++)
     {
-        var offset = hex_corner_offset(layout, i);
+        var offset = hex_corner_offset(layout, i, scale );
         corners.push(Point(center.x + offset.x, center.y + offset.y));
     }
     return corners;
