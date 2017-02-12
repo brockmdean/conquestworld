@@ -76,11 +76,11 @@ game.model = (function() {
   var kCityCost = 100;
   var kCityCostIncr = 100;
   var kWallCost = 500;
-    var kWallStrength = 100;
-    var kWallCostInc = 10;
-    var kAllowStrongerWalls= false;
-  var kPingCost = 5000;
-  var kPingRange = 100;
+  var kWallStrength = 100;
+  var kWallCostInc = 10;
+  var kAllowStrongerWalls = false;
+  var kPingCost = game.constant.kPingCost;
+  var kPingRange = game.constant.kPingRange;
   var kPingRangeSquared = kPingRange * kPingRange;
   var trailsOn = false;
   var queenOn = false;
@@ -117,9 +117,15 @@ game.model = (function() {
         //        console.log("adding a neighbor");
         t = game.util.createRecord({ hexID: HexLib.hexToId(neighborHexs[i]) });
         //t.V=1;
+        //TODO do we really need this insert?
         neighborRecords.push(t);
         db.insert(t);
-        rDB.pushUpdate(t);
+          rDB.pushUpdate(t);
+          var trans = game.util.getID();
+          var from = Object.assign({},t);
+          from.T = trans;
+          rDB.pushDiffUpdate(from , null);
+
       }
     }
     return neighborRecords;
@@ -135,8 +141,8 @@ game.model = (function() {
     if (records.length == 0) {
       return;
     }
-    db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    cursorRecord.Cursor = 0;
+    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
+    //cursorRecord.Cursor = 0;
     //radio("draw-hexagon").broadcast(cursorRecord);
     // console.log("game.model received toggle-selection message"+data.hexID);
     // console.log("count "+records.length);
@@ -144,11 +150,12 @@ game.model = (function() {
     // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
     record = records[0];
     cursorRecord = record;
-    //radio("draw-hexagon").broadcast(cursorRecord);
+    radio("update-cursor").broadcast(cursorRecord);
     if (!record.V) {
       return;
     }
     if (record.UID !== game.uid() && record.UID !== 0) {
+      radio("message").broadcast("Hex belongs to : " + playerMap[record.UID]);
       return;
     }
     selected = record.S;
@@ -157,7 +164,7 @@ game.model = (function() {
     } else {
       selected = 1;
     }
-    db.update({ hexID: record.hexID, S: selected, Cursor: 1 });
+    db.update({ hexID: record.hexID, S: selected });
     record.S = selected;
     //radio("draw-hexagon").broadcast(record);
   };
@@ -172,8 +179,107 @@ game.model = (function() {
   //    var updateWorld = function (r){
   //        db.insert(r);
   //    };
+  var diffUpdate = function(record) {
+    var A;
+    var UID;
+    var C = 0;
+    var W = 0;
+    var K = 0;
+      var S;
+    console.log("diffUpdate");
+      console.log("     "+game.util.formatRecord(record));
+
+    var localRecord = db.query({ hexID: record.hexID })[0];
+    A = localRecord.A;
+    K = localRecord.K;
+    W = localRecord.W;
+    C = localRecord.C;
+      UID = localRecord.UID;
+      S = record.S;
+      console.log("     local record");
+      console.log("          "+game.util.formatRecord(localRecord));
+
+    //the basic alg is this
+    //1. get the local record.
+    //2. if the UID is different
+    //   1. subtract armies
+    //   2. if the result is negative
+    //      change the sign and change the ownership
+    //
+    //3. if the uid is the same
+    //   1. add the armies.
+    //4. k,c,w all just add, and change the id if it is 0
+    //
+    var recordA = record.A;
+    if (recordA) {
+      if (record.UID !== localRecord.UID) {
+        if (W) {
+            W = W - recordA;
+            recordA=0;
+          if (W < 0) {
+              recordA = W * (-1);
+              W=0;
+          }
+        }
+        A = A - recordA;
+        if (A < 0) {
+          A = A * (-1);
+            UID = record.UID;
+            C=0;
+            K=0;
+        }else{
+            S=0;
+        }
+      } else {
+          A = A + record.A;
+      }
+    }
+
+    if (record.K) {
+      K = record.K;
+      UID = record.UID;
+    }
+    if (record.C) {
+      C = 1;
+      UID = record.UID;
+    }
+    if (record.W) {
+      W = record.W;
+      UID = record.UID;
+    }
+    if (A === 0 && C === 0 && K === 0 && W === 0) {
+      UID = 0;
+    }
+    var newRecord = game.util.createRecord({
+      hexID: localRecord.hexID,
+      A: A,
+      K: K,
+      C: C,
+        W: W,
+        S:S,
+      UID: UID,
+      V: UID === game.uid() || localRecord.V
+    });
+      console.log("     updated record");
+      console.log("          "+game.util.formatRecord(newRecord));
+    db.update(newRecord);
+
+    if (
+      record.UID == game.uid() && (record.A || record.C || record.K || record.W)
+    ) {
+      let n = findNeighbors(localRecord);
+      n.forEach(function(_r) {
+        if (!_r.V) {
+          _r.V = 1;
+          db.update(_r);
+          window.neighborDrawing++;
+        }
+      });
+    }
+  };
   var update = function(record) {
-    // console.log("recieved a record update from fb");
+    //      console.log("update");
+    radio("debug-transactions").broadcast({ f: "Update" });
     window.updateCount++;
     var r;
     var records, n, localR, localV;
@@ -184,12 +290,14 @@ game.model = (function() {
     // if we have recieved this update before, dont do it again.
     // radio('debug-transactions').broadcast({ID:snapshot.key,date:record.date,r:record.record});
     r = Object.assign({}, record);
+    radio("debug-transactions").broadcast(r);
+
     //game.util.printRecord(r);
     // because the selected (S) field is sometimes passed through
     // fb, here we can get selected tiles that we did not select.
     // so clear the selected field if this tile is not ours.
     // and set the Visibility if the hex is ours
-    // game.util.printRecord(r);
+    //     game.util.printRecord(r);
     if (!db.keyExists(r.hexID)) {
       // if the record does not exist this rule applies
       if (r.UID !== game.uid()) {
@@ -204,10 +312,15 @@ game.model = (function() {
       db.insert(r);
     } else {
       localR = db.query({ hexID: r.hexID });
+      //filter out records that do no changes
       if (game.util.recordsEqual(r, localR[0])) {
         return;
       }
       window.updateWorkCount++;
+      //        console.log("local Record");
+      //        game.util.printRecord(localR[0]);
+      radio("debug-transactions").broadcast(localR[0]);
+
       if (r.UID !== game.uid()) {
         r.S = 0;
       }
@@ -219,7 +332,6 @@ game.model = (function() {
       r.V = localV;
       if (!r.local) {
         r.S = localR[0].S;
-        r.Cursor = localR[0].Cursor;
         r.Marker = localR[0].Marker;
       }
       delete r.local;
@@ -241,7 +353,7 @@ game.model = (function() {
         if (r.K == 0 && queenR.K == 1) {
           // we died.
           // now update all our cits to the new owner.
-          // console.log("we are loosing");
+          //           console.log("we are loosing");
           //myCities = db.matchCities();
           //newOwner = r.UID;
           //rDB.openTransaction();
@@ -251,7 +363,7 @@ game.model = (function() {
           //   rDB.pushUpdate(_r);
           // });
           // rDB.closeTransaction();
-          // radio("losing-message").broadcast();
+          radio("losing-message").broadcast();
         }
       }
       db.update(r);
@@ -291,17 +403,10 @@ game.model = (function() {
   //
   var createKing = function() {
     var done = false;
-    var x, y, z, r;
-    do {
-      // make sure we don't spawn on an occupied location.
-      x = game.util.getRandomIntInclusive(5, 200);
-      y = game.util.getRandomIntInclusive(5, 200);
-      z = -x - y;
-      r = db.query({ hexID: x + "_" + y + "_" + z });
-      if (r.length == 0) {
-        done = true;
-      }
-    } while (!done);
+    var x, y, z;
+    x = game.util.getRandomIntInclusive(5, game.constant.kSpawnRange);
+      y = game.util.getRandomIntInclusive(5, game.constant.kSpawnRange);
+    z = -x - y;
     console.log("creating king at x:" + x + " y:" + y + " z:" + z);
     console.log("ocnstraint x+y+z= 0 :" + (x + y + z));
     var h = HexLib.Hex(x, y, z);
@@ -311,22 +416,29 @@ game.model = (function() {
       K: 1,
       A: 5,
       h: h,
-      V: 1,
-      Cursor: 1
+      V: 1
     });
     cursorRecord = r;
-    //db.insert(r);
-    rDB.pushUpdate(r);
+      //    db.insert(game.util.createRecord({ hexID: r.hexID }));
+      var expected = null;
+    // r.expected = expected;
+      rDB.pushUpdate(r);
+    var trans = game.util.getID();
+
+//    var from = game.util.createRecord({ hexID: r.hexID });
+//    from.T = trans;
+//    rDB.pushDiffUpdate(from, null);
     rDB.updatePingList(r);
     radio("center-on-queen").broadcast(h, true);
     radio("launch-complete").broadcast();
-    //      for (let i =0 ; i<5 ; i++){
-    //
-    //          let  m = game.util.createRecord({hexID:x + "_" + (y+2+i) + "_" + (z-2-i), M:1});
-    //          //rDB.pushUpdate(m);
-    //          rDB.updateWorldCoordinate(m);
-    //
-    //      }
+    radio("update-cursor").broadcast(cursorRecord);
+//    trans = game.util.getID();
+//    var next = { K: 1, A: 5, UID: game.uid(), T: trans, hexID: r.hexID };
+//    radio("diff").broadcast(next);
+//      rDB.pushDiffUpdate(next, null);
+    updateIntervalID = setInterval(oneSecondUpdate, 1000);
+    //setTimeout(oneSecondUpdate,10000);
+      
   };
   var queenLocation = function() {
     var rs = db.matchQueen();
@@ -357,10 +469,14 @@ game.model = (function() {
     var count = record.A + 1;
     var newRecord = Object.assign({}, record);
     newRecord.A = count;
-    // console.log("genNewTroop "+record);
     rDB.openTransaction();
-    rDB.pushUpdate(newRecord);
+      rDB.pushUpdate(newRecord);
     rDB.closeTransaction();
+    var next;
+    var trans = game.util.getID();
+      //next = { A: 1, UID: game.uid(), T: trans, hexID: record.hexID , S:record.S};
+    //radio("diff").broadcast(next);
+    //rDB.pushDiffUpdate(next, null);
   };
   var oneSecondUpdate = function() {
     //console.log("oneSecondUpdate");
@@ -410,24 +526,24 @@ game.model = (function() {
           found = true;
         }
       }
-        if (!found) {
-            //console.log("not found");
+      if (!found) {
+        //console.log("not found");
         nextLeaderBoard[4] = {
           UID: game.uid(),
           score: totalLeaderBoard[game.uid()],
           name: playerMap[game.uid()]
         };
       }
-//        nextLeaderBoard.forEach(function(r) {
-//          console.log(r);
-//      });
+      //        nextLeaderBoard.forEach(function(r) {
+      //          console.log(r);
+      //      });
       leaderBoard = nextLeaderBoard.slice(0, 5);
     } else {
       leaderBoard = nextLeaderBoard;
     }
-//    leaderBoard.forEach(function(r) {
-//      console.log(r);
-//    });
+    //    leaderBoard.forEach(function(r) {
+    //      console.log(r);
+    //    });
   };
   var totalCityCost;
   var totalCitiesBuilt;
@@ -438,7 +554,7 @@ game.model = (function() {
     kCityCost = myCities.length * kCityCostIncr;
     var cities = db.matchSelected();
     //console.log("found " + cities.length + " selected hexes");
-    cities.forEach(game.util.printRecord);
+    //    cities.forEach(game.util.printRecord);
     rDB.openTransaction();
     cities.forEach(buildCity);
     rDB.closeTransaction();
@@ -454,18 +570,6 @@ game.model = (function() {
     }
   };
   var buildCity = function(record, recordNumber) {
-    console.log(
-      "buildCity r:" +
-        record.A +
-        " " +
-        record.W +
-        " " +
-        record.K +
-        " " +
-        record.M +
-        " " +
-        gold
-    );
     //console.log('city cost ' + kCityCost);
     // game.util.printRecord(record);
     if (
@@ -489,6 +593,10 @@ game.model = (function() {
       // game.util.printRecord(record);
       rDB.pushUpdate(r);
       radio("draw-gold").broadcast(gold);
+      var trans = game.util.getID();
+      var next = { C: 1, UID: game.uid(), T: trans, hexID: record.hexID };
+      radio("diff").broadcast(next);
+      rDB.pushDiffUpdate(next, null);
     }
   };
   var totalWallCost;
@@ -514,36 +622,44 @@ game.model = (function() {
     var thisWallCost = 1;
     var wallStrength = record.W;
     var exp = Math.floor(wallStrength / 100);
-      if(kAllowStrongerWalls){
-          for (let i = 0; i < exp; i++) {
-              thisWallCost *= 2;
-          }
-          thisWallCost *= kWallCost;
-      }else{
-          if(wallStrength){return;}
-          kWallCost += kWallCostInc;
-          thisWallCost = kWallCost;
+    if (kAllowStrongerWalls) {
+      for (let i = 0; i < exp; i++) {
+        thisWallCost *= 2;
       }
-      if (
-          record.K == 0 &&
-              record.M == 0 &&
-              record.C == 0 &&
-              gold >= thisWallCost
-      ) {
-          radio("update-wall-cost").broadcast(kWallCost);
-          totalWallsBuilt++;
-          totalWallCost += thisWallCost;
-          gold -= thisWallCost;
-          rDB.pushUpdate(
-              game.util.createRecord({
-                  hexID: record.hexID,
-                  A: record.A,
-                  W: kWallStrength + record.W,
-                  UID: game.uid()
-              })
-          );
-          radio("draw-gold").broadcast(gold);
+      thisWallCost *= kWallCost;
+    } else {
+      if (wallStrength) {
+        return;
       }
+    }
+    if (
+      record.K == 0 && record.M == 0 && record.C == 0 && gold >= thisWallCost
+    ) {
+      kWallCost += kWallCostInc;
+      thisWallCost = kWallCost;
+      radio("update-wall-cost").broadcast(kWallCost);
+      totalWallsBuilt++;
+      totalWallCost += thisWallCost;
+      gold -= thisWallCost;
+      rDB.pushUpdate(
+        game.util.createRecord({
+          hexID: record.hexID,
+          A: record.A,
+          W: kWallStrength + wallStrength,
+          UID: game.uid()
+        })
+      );
+      radio("draw-gold").broadcast(gold);
+      var trans = game.util.getID();
+      var next = {
+        W: kWallStrength + wallStrength,
+        UID: game.uid(),
+        T: trans,
+        hexID: record.hexID
+      };
+      radio("diff").broadcast(next);
+      rDB.pushDiffUpdate(next, null);
+    }
   };
   var geoSort = function(dir) {
     if (dir == "down") {
@@ -591,11 +707,11 @@ game.model = (function() {
       return;
     }
     //game.util.printRecord(targetRecord);
-    db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
+    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
     //radio("draw-hexagon").broadcast(cursorRecord);
     cursorRecord = targetRecord;
-    db.update({ hexID: cursorRecord.hexID, Cursor: 1, S: 1 });
-    //radio("draw-hexagon").broadcast(cursorRecord);
+    db.update({ hexID: cursorRecord.hexID, S: 1 });
+    radio("update-cursor").broadcast(cursorRecord);
   };
   var move = function(dir) {
     // you cant move the queen and troops at the same
@@ -646,15 +762,33 @@ game.model = (function() {
     }
     //if the queen is moving , keep the cursor with her.
     //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    r.Cursor = 0;
+    //    r.Cursor = 0;
     cursorRecord = targetRecord;
     //db.update(r);
     //db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
     targetRecord.K = 1;
     targetRecord.UID = game.uid();
-    targetRecord.Cursor = 1;
+    //targetRecord.Cursor = 1;
     rDB.pushUpdate(r);
     rDB.pushUpdate(targetRecord);
+    var trans = game.util.getID();
+    var nextR = {
+      K: -1,
+      UID: game.uid(),
+      T: trans,
+      hexID: r.hexID,
+      to: t.hexID
+    };
+    var nextT = {
+      k: 1,
+      UID: game.uid(),
+      T: trans,
+      hexID: t.hexID,
+      from: r.hexID
+    };
+    radio("diff").broadcast(nextR);
+    radio("diff").broadcast(nextT);
+    rDB.pushDiffUpdate(nextR, nextT);
   };
   var getTarget = function(dir, record) {
     var targetHex = HexLib.hex_neighbor(record.h, dir);
@@ -670,6 +804,45 @@ game.model = (function() {
       //return game.util.createRecord({hexID: HexLib.hexToId(targetHex)});
     }
   };
+  var moveArmy = function(r, t) {
+    var nextR, nextT;
+      var count;
+      var rS;
+    count = r.A;
+    if (t.UID === game.uid()) {
+      var a = r.A;
+        var tA = t.A;
+        rS= 0;
+      if (tA + a > kTroopLimit) {
+          count = kTroopLimit - tA;
+          rS = 1;
+      }
+    }else {rS = 0;}
+    var trans = game.util.getID();
+    nextR = {
+      A: count * (-1),
+      UID: game.uid(),
+      T: trans,
+      hexID: r.hexID,
+        to: t.hexID,
+        S : rS
+    };
+    nextT = {
+      A: count,
+      UID: game.uid(),
+      T: trans,
+      hexID: t.hexID,
+        from: r.hexID,
+        S:1
+    };
+      if(r.hexID === cursorRecord.hexID){
+          cursorRecord = t;
+           radio("update-cursor").broadcast(cursorRecord);
+      }
+    radio("diff").broadcast(nextR);
+    radio("diff").broadcast(nextT);
+    rDB.pushDiffUpdate(nextR, nextT);
+  };
   var oneMove = function(dir, recordTemp) {
     // rules
     // 1. cant move onto mountains
@@ -680,7 +853,7 @@ game.model = (function() {
     var targetRecord = Object.assign({}, tr);
     var record = Object.assign({}, recordTemp);
     var mUID, tUID, rUID;
-
+      //moveArmy(record, targetRecord);
     // console.log("targetRecord");
     // game.util.printRecord(targetRecord);
     // console.log("record");
@@ -917,10 +1090,11 @@ game.model = (function() {
         record.S = 0;
       }
     }
-    if (record.Cursor) {
-      record.Cursor = 0;
-      targetRecord.Cursor = 1;
+    if (record.hexID === cursorRecord.hexID) {
+      //      record.Cursor = 0;
+      //      targetRecord.Cursor = 1;
       cursorRecord = targetRecord;
+      radio("update-cursor").broadcast(cursorRecord);
     }
     //db.update(record);
     //db.update(targetRecord);
@@ -946,7 +1120,7 @@ game.model = (function() {
     }
     if (square.select === "control") {
       records.forEach(function(r) {
-        if (r.A == 0 && r.C === 0 && r.K === 0 && r.M === 0 && r.W===0) {
+        if (r.A == 0 && r.C === 0 && r.K === 0 && r.M === 0 && r.W === 0) {
           db.update({ hexID: r.hexID, S: 1 });
         }
       });
@@ -1033,6 +1207,10 @@ game.model = (function() {
     var newR = Object.assign({}, r);
     newR.A = kTroopLimit;
     rDB.pushUpdate(newR);
+    var trans = game.util.getID();
+    var next = { A: diff, UID: game.uid(), T: trans, hexID: r.hexID };
+    radio("diff").broadcast(next);
+    rDB.pushDiffUpdate(next, null);
   };
   var initModule = function(playerName) {
     if (!playerName) {
@@ -1042,7 +1220,8 @@ game.model = (function() {
       { location: game.world() + "/updates", callback: update },
       { location: game.world() + "/users", callback: addPlayerNameToList },
       { location: game.world() + "/world" },
-      { location: game.world() + "/leaderBoard", callback: computeLeaderBoard }
+      { location: game.world() + "/leaderBoard", callback: computeLeaderBoard },
+      { location: game.world() + "/newWorld", callback: diffUpdate }
     );
 
     rDB.pushUser({ UID: game.uid(), name: playerName });
@@ -1052,8 +1231,6 @@ game.model = (function() {
     //      rDB.tryUpdate();
     //rDB.joinWorld(createKing);
     setTimeout(createKing, 1000);
-    updateIntervalID = setInterval(oneSecondUpdate, 1000);
-    //setTimeout(oneSecondUpdate,10000);
     radio("toggle-selection").subscribe(toggleSelection);
     radio("build-wall").subscribe(buildWalls);
     radio("build-city").subscribe(buildCities);
@@ -1077,8 +1254,8 @@ game.model = (function() {
     var records = db.matchSelected();
     var record, marked;
     var newRecord;
-    console.log("game.model received toggle-marker message");
-    console.log("count " + records.length);
+    //    console.log("game.model received toggle-marker message");
+    //    console.log("count " + records.length);
     // assert that there is only one record
     // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
     if (records.length == 1) {
@@ -1105,8 +1282,8 @@ game.model = (function() {
     }
   };
   var jumpNextMarker = function() {
-    console.log('marker ring');
-    console.log(markerRing);
+    //    console.log('marker ring');
+    //    console.log(markerRing);
     var m = markerRing.shift();
     markerRing.push(m);
     //console.log(m);

@@ -10,7 +10,7 @@
 game.drawLayer = (function() {
   "use strict";
   // ---------------- BEGIN MODULE SCOPE VARIABLES --------------
-  var size =15;
+  var size = 15;
   var layout = HexLib.Layout(HexLib.layout_flat, { x: size, y: size }, {
     x: 0,
     y: 0
@@ -33,7 +33,7 @@ game.drawLayer = (function() {
   var r = size * Math.sqrt(3) / 2;
   var cxt;
   // must match with kPingRangeSquared in the model
-  var kPingRange = 100;
+  var kPingRange = game.constant.kPingRange;
   var boardWidth = 1200;
   var boardHeight = 600;
   var pingLayout = HexLib.Layout(HexLib.layout_flat, { x: .5, y: .5 }, {
@@ -64,21 +64,20 @@ game.drawLayer = (function() {
   var queen = {};
   queen.x = 110;
   queen.y = 35;
-    queen.width = 30;
-    var leaderBoardArea={};
-    var messageArea={};
-    messageArea.x=250;
-    messageArea.y=0;
-    messageArea.width=500;
-    messageArea.height=30;
-    var controlArea={};
-    controlArea.x = 0;
-    controlArea.y= 0;
-    controlArea.width = 200;
-    controlArea.height = 70;
-    var pingArea={};
-        
-    
+  queen.width = 30;
+  var leaderBoardArea = {};
+  var messageArea = {};
+  messageArea.x = 250;
+  messageArea.y = 0;
+  messageArea.width = 500;
+  messageArea.height = 30;
+  var controlArea = {};
+  controlArea.x = 0;
+  controlArea.y = 0;
+  controlArea.width = 200;
+  controlArea.height = 70;
+  var pingArea = {};
+
   var queenOn = false;
   var trailsOn = false;
   var colorList = [
@@ -100,6 +99,7 @@ game.drawLayer = (function() {
   var beginPanX, beginPanY;
   var dontClick;
   var cachedGold = 0;
+  var cachedCursor = { hexID: "0_0_0" };
   var UidToName = {};
   var cachedLeaderBoard = [
     { UID: "qwertyy", name: "12345678901234567890123", score: 10 },
@@ -138,19 +138,19 @@ game.drawLayer = (function() {
   //   * $container the jquery element used by this feature
   //  Returns    : true
   //  Throws     : none
-    //
-    var getColor = function(UID){
-        var color;
-        
-      if (colorMap.hasOwnProperty(UID)) {
-        color = colorMap[UID];
-      } else {
-          color = colorList.shift();
-          colorMap[UID] = color;
-          colorList.push(color);
-      }
-        return color;
-    };
+  //
+  var getColor = function(UID) {
+    var color;
+
+    if (colorMap.hasOwnProperty(UID)) {
+      color = colorMap[UID];
+    } else {
+      color = colorList.shift();
+      colorMap[UID] = color;
+      colorList.push(color);
+    }
+    return color;
+  };
   var initModule = function(playerName) {
     UidToName[game.uid()] = playerName;
     colorMap[game.uid()] = "red";
@@ -163,10 +163,10 @@ game.drawLayer = (function() {
       x: (-1) * (boardWidth - 95),
       y: (-1) * (boardHeight - Math.sqrt(3) * 95 / 2)
     });
-      pingArea.x=boardWidth-200;
-    pingArea.y=boardHeight-175;
-    pingArea.width=200;
-      pingArea.height=175;
+    pingArea.x = boardWidth - 200;
+    pingArea.y = boardHeight - 175;
+    pingArea.width = 200;
+    pingArea.height = 175;
 
     pingLayout.origin.x = boardWidth - 200;
     pingLayout.origin.y = boardHeight - 200;
@@ -189,6 +189,7 @@ game.drawLayer = (function() {
     radio("center-on-queen").subscribe(centerBoard);
     radio("message").subscribe(saveMessage);
     radio("ping-data-point").subscribe(pingDataPoint);
+    radio("update-cursor").subscribe(updateCursor);
     pingImgData = [];
     // cxt.createImageData(kPingRange * 2, kPingRange * 2);
     //centerBoard(queenLocation);
@@ -202,6 +203,10 @@ game.drawLayer = (function() {
       100
     );
   };
+  var updateCursor = function(r) {
+    cachedCursor = r;
+  };
+
   var centerBoardOnQueen = function() {
     var h = game.model.queenLocation();
     centerBoard(h, true);
@@ -228,32 +233,31 @@ game.drawLayer = (function() {
       ).broadcast({ x: layout.origin.x, y: layout.origin.y, width: boardWidth, height: boardHeight });
     }
   };
- // var ping = function(data) {
- //   pingImgData = data;
- //   console.log("ping");
-    //        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
-    //        var pd = pingImgData.data;
-    // console.log(pingImgData.data.length);
- //   drawPingMap();
- // };
-    var pingDataPoint = function(h) {
-        console.log("pingDataPoint");
-        console.log(h);
-        pingImgData.push(h);
+  // var ping = function(data) {
+  //   pingImgData = data;
+  //   console.log("ping");
+  //        pingImgData =  cxt.createImageData(kPingRange*2 , kPingRange*2);
+  //        var pd = pingImgData.data;
+  // console.log(pingImgData.data.length);
+  //   drawPingMap();
+  // };
+  var pingDataPoint = function(h) {
+    console.log("pingDataPoint");
+    console.log(h);
+    pingImgData.push(h);
   };
   var drawPingPoint = function(d) {
     //    	console.log("drawPingPoint");
     //	console.log("q:"+d.q+" r:"+d.r+" s:"+d.s);
     var p = HexLib.hex_to_pixel(pingLayout, d);
     //	console.log("x:"+p.x+" y:"+p.y);
-      cxt.save();
-      cxt.fillStyle = getColor(d.UID);
-//    if (d.UID == game.uid()) {
-//      cxt.fillStyle = "red";
-//    } else {
-//      cxt.fillStyle = "green";
-      //    }
-      
+    cxt.save();
+    cxt.fillStyle = getColor(d.UID);
+    //    if (d.UID == game.uid()) {
+    //      cxt.fillStyle = "red";
+    //    } else {
+    //      cxt.fillStyle = "green";
+    //    }
     cxt.fillRect(
       Math.round(p.x + pingLayout.origin.x),
       Math.round(p.y + pingLayout.origin.y),
@@ -545,9 +549,10 @@ game.drawLayer = (function() {
       centerBoardOnQueen();
       return;
     }
-      if (e.key === "P" || e.key === "p") {
-          if(cachedGold > 5000){
-              pingImgData = [];}
+    if (e.key === "P" || e.key === "p") {
+      if (cachedGold > game.constant.kPingCost) {
+        pingImgData = [];
+      }
       radio("ping").broadcast();
       return;
     }
@@ -567,18 +572,18 @@ game.drawLayer = (function() {
       radio("help").broadcast();
       return;
     }
-      if(e.key === '+' ){
-          if(layout.size.x < 25){
-          layout.size.x++;
-              layout.size.y++;
-          }
+    if (e.key === "+") {
+      if (layout.size.x < 25) {
+        layout.size.x++;
+        layout.size.y++;
       }
-      if(e.key === '-' ){
-          if(layout.size.x > 5){
-          layout.size.x--;
-              layout.size.y--;
-          }
+    }
+    if (e.key === "-") {
+      if (layout.size.x > 5) {
+        layout.size.x--;
+        layout.size.y--;
       }
+    }
     // debug keystrokes
     if (e.key === ";") {
       radio("dump-database").broadcast();
@@ -713,7 +718,7 @@ game.drawLayer = (function() {
     cxt.strokeRect(wall.x, wall.y, wall.width, wall.width);
     cxt.fillText("W", wall.x + 7, wall.y + wall.width - 12);
     cxt.font = "10px san-serif";
-    cxt.fillText("100", wall.x + 7, wall.y + wall.width - 3);
+    cxt.fillText(wallCost, wall.x + 7, wall.y + wall.width - 3);
   };
 
   var drawMoveTrails = function() {
@@ -748,28 +753,56 @@ game.drawLayer = (function() {
     }
     cxt.fillText("Q", queen.x + 7, queen.y + queen.width - 8);
   };
+
+   var drawStar = function(cx,cy,spikes,outerRadius,innerRadius){
+       var rot=Math.PI/2*3;
+       var x=cx;
+       var y=cy;
+       var step=Math.PI/spikes;
+       
+       cxt.beginPath();
+       cxt.moveTo(cx,cy-outerRadius);
+       for(let i=0;i<spikes;i++){
+           x=cx+Math.cos(rot)*outerRadius;
+           y=cy+Math.sin(rot)*outerRadius;
+           cxt.lineTo(x,y);
+           rot+=step;
+           
+           x=cx+Math.cos(rot)*innerRadius;
+           y=cy+Math.sin(rot)*innerRadius;
+           cxt.lineTo(x,y);
+           rot+=step;
+       }
+       cxt.lineTo(cx,cy-outerRadius);
+       cxt.closePath();
+       cxt.lineWidth=5;
+       cxt.strokeStyle='black';
+       cxt.stroke();
+       cxt.fillStyle='black';
+      // cxt.fill();
+   };
+    
   var drawLeaderBoard = function(data) {
     cxt.save();
     cachedLeaderBoard = data;
     // map uid to names here.
     // cachedLeaderBoard.forEach(function(r){r.name = data.p[r.UID]});
-      // console.log(cachedLeaderBoard);
-
-      //TODO move this out of the function. 
+    // console.log(cachedLeaderBoard);
+    //TODO move this out of the function.
     var leaderWidth = 300;
     var leaderHeight = 100;
     var topLeft = {};
     topLeft.x = boardWidth - leaderWidth;
     var nameHeight = leaderHeight / 5;
     var nameWidth = 200;
-      var scoreWidth = leaderWidth - nameWidth;
-      var color;
-      topLeft.y = 0;
-      leaderBoardArea.x=topLeft.x;
-      leaderBoardArea.y=topLeft.y;
-      leaderBoardArea.width =300;
-      leaderBoardArea.height = 100;
-      /////////////////
+    var scoreWidth = leaderWidth - nameWidth;
+    var color;
+    topLeft.y = 0;
+    leaderBoardArea.x = topLeft.x;
+    leaderBoardArea.y = topLeft.y;
+    leaderBoardArea.width = 300;
+    leaderBoardArea.height = 100;
+    /////////////////
     cxt.font = "17px serif";
     cxt.fillStyle = "black";
     cxt.strokeStyle = "black";
@@ -787,12 +820,19 @@ game.drawLayer = (function() {
         scoreWidth,
         nameHeight
       );
-        color = getColor(cachedLeaderBoard[i].UID);
-        cxt.fillStyle=color;
-        cxt.beginPath();
-        cxt.arc(topLeft.x+10,topLeft.y + nameHeight*i+10,5,0 , Math.PI*2,false);
-        cxt.fill();
-        cxt.fillStyle='black';
+      color = getColor(cachedLeaderBoard[i].UID);
+      cxt.fillStyle = color;
+      cxt.beginPath();
+      cxt.arc(
+        topLeft.x + 10,
+        topLeft.y + nameHeight * i + 10,
+        5,
+        0,
+        Math.PI * 2,
+        false
+      );
+      cxt.fill();
+      cxt.fillStyle = "black";
       cxt.fillText(
         cachedLeaderBoard[i].name.substr(0, 23),
         topLeft.x + 20,
@@ -807,7 +847,7 @@ game.drawLayer = (function() {
     cxt.restore();
   };
   var drawGold = function(gold) {
-      cxt.save();
+    cxt.save();
     cachedGold = gold;
     cxt.clearRect(0, 0, 200, 30);
     cxt.strokeStyle = "black";
@@ -815,11 +855,11 @@ game.drawLayer = (function() {
     cxt.font = "22px serif";
     cxt.strokeRect(0, 0, 200, 30);
     cxt.fillText("gold : " + gold, 5, 20);
-      cxt.restore();
-   // drawBuildCity();
-   // drawBuildWall();
-   // drawMoveTrails();
-   // drawQueen();
+    cxt.restore();
+    // drawBuildCity();
+    // drawBuildWall();
+    // drawMoveTrails();
+    // drawQueen();
     //drawPing();
   };
   var onScreen = function(record) {
@@ -876,18 +916,26 @@ game.drawLayer = (function() {
       drawHexagonBackground(record.h, "black");
       return;
     }
-      //don't draw over the leaderboard etc ... 
-      if(overlap(record.h,leaderBoardArea)){return;};
-      if(overlap(record.h,messageArea)){return;};
-      if(overlap(record.h,controlArea)){return;};
-      if(overlap(record.h,pingArea)){return;};
+    //don't draw over the leaderboard etc ...
+    if (overlap(record.h, leaderBoardArea)) {
+      return;
+    }
+    if (overlap(record.h, messageArea)) {
+      return;
+    }
+    if (overlap(record.h, controlArea)) {
+      return;
+    }
+    if (overlap(record.h, pingArea)) {
+      return;
+    }
     // console.log("Xcenter "+XcenterHex+ " Ycenter "+YcenterHex);
     // console.log("recordx "+record.x+" recordY "+record.y);
     // console.log("--------");
     if (record.UID === game.uid()) {
       // if the selected hex gets near the edge, and we are allowed
       // to recenter, and if we are selected.
-      if (record.Cursor) {
+      if (record.hexID === cachedCursor.hexID) {
         if (distanceToEdge(record) < 2 && allowRecenter) {
           allowRecenter = false;
           //console.log("Recentering");
@@ -899,8 +947,8 @@ game.drawLayer = (function() {
     if (record.UID !== 0) {
       // console.log("drawbackground");
       // look up the uid and get its color ,  or assign it if this
-        // is a new uid
-        color = getColor(record.UID);
+      // is a new uid
+      color = getColor(record.UID);
     } else {
       color = "white";
     }
@@ -914,34 +962,39 @@ game.drawLayer = (function() {
     //} else {
     //  color = "black";
     //}
-    drawHexagonFrame(record.h, 'black');
+    drawHexagonFrame(record.h, "black");
     var point = HexLib.hex_to_pixel_windowed(layout, record.h);
     cxt.font = "22px serif";
-    if (record.K) {
-      cxt.strokeStyle = "grey";
-      cxt.strokeText("Q", point.x - 8, point.y + 7);
+      if (record.K) {
+          cxt.save();
+          drawStar(point.x,point.y,5,layout.size.x,5);
+          cxt.restore();
     }
     if (record.C) {
       cxt.strokeStyle = "grey";
       cxt.strokeText("C", point.x - 8, point.y + 7);
     }
-      if (record.W) {
-          cxt.save();
-          drawHexagonBackground(record.h,'black');
-          drawHexagonBackground(record.h,color,0.7);
-          //cxt.font = "18px serif";
-          //cxt.fillStyle = "black";
-          //cxt.fillText("W", point.x - 8, point.y + 2);
-          //cxt.font = "10px serif";
-          //cxt.fillText(record.W, point.x - 8, point.y + 9);
-          cxt.restore();
+    if (record.W) {
+      cxt.save();
+      drawHexagonBackground(record.h, "black");
+      drawHexagonBackground(record.h, color, 0.7);
+      //cxt.font = "18px serif";
+      //cxt.fillStyle = "black";
+      //cxt.fillText("W", point.x - 8, point.y + 2);
+      //cxt.font = "10px serif";
+      //cxt.fillText(record.W, point.x - 8, point.y + 9);
+      cxt.restore();
     }
     if (record.M) {
       drawTerain(record.M, record.h);
     }
     if (record.A) {
-      cxt.font = "12px san-serif";
-      cxt.fillStyle = "black";
+        cxt.font = "12px san-serif";
+        if(record.K){
+            cxt.fillStyle='white';
+        }else{
+            cxt.fillStyle = "black";
+        }
       cxt.fillText(record.A, point.x - 8, point.y + 7);
     }
     if (record.Marker) {
@@ -949,7 +1002,7 @@ game.drawLayer = (function() {
       cxt.fillStyle = "black";
       cxt.fillText("F", point.x - 8, point.y + 7);
     }
-    if (record.Cursor) {
+    if (record.hexID === cachedCursor.hexID) {
       drawCursor(record.h);
     }
     cxt.restore();
@@ -974,14 +1027,16 @@ game.drawLayer = (function() {
       drawHexagonBackground(h, "blue");
     }
   };
-    var drawHexagonBackground = function(h, color,scale) {
-        //console.log("drawHexagonBackground");
-        if(!scale){scale=1;}
+  var drawHexagonBackground = function(h, color, scale) {
+    //console.log("drawHexagonBackground");
+    if (!scale) {
+      scale = 1;
+    }
     cxt.fillStyle = color;
     cxt.lineWidth = 1;
     cxt.beginPath();
 
-        var corners = HexLib.polygon_corners(layout, h,scale);
+    var corners = HexLib.polygon_corners(layout, h, scale);
     corners.forEach(function(c) {
       cxt.lineTo(c.x, c.y);
     });
@@ -1056,8 +1111,7 @@ game.drawLayer = (function() {
   var saveMessage = function(m) {
     message = m;
   };
-    var drawMessage = function() {
-        
+  var drawMessage = function() {
     cxt.save();
     cxt.clearRect(250, 0, 500, 30);
     cxt.strokeStyle = "black";
@@ -1067,28 +1121,30 @@ game.drawLayer = (function() {
     cxt.fillText(message, 255, 20);
     cxt.restore();
   };
-    var overlap = function(h,area){
-        
-          var p = HexLib.hex_to_pixel_windowed(layout,h);
-          if( p.x > area.x && p.x < area.x+ area.width &&
-              p.y > area.y && p.y < area.y+area.height)
-          {
-              return true;
-          }
-          return false;
-    };
-    var overlapHex = function(h,area){
-        var p = HexLib.hex_to_pixel_windowed(layout,h);
-        var c = HexLib.hex_to_pixel_windowed(pingFrameLayout,HexLib.Hex(0,0,0));
-        var d = Math.sqrt(Math.pow(p.x-c.x,2)- Math.pow(p.y-c.y,2));
-        console.log(p);
-        console.log(c);
-        console.log(d);
-        if(d < area.r){
-            return true;
-        }
-        return false;
-    };
+  var overlap = function(h, area) {
+    var p = HexLib.hex_to_pixel_windowed(layout, h);
+    if (
+      p.x > area.x &&
+        p.x < area.x + area.width &&
+        p.y > area.y &&
+        p.y < area.y + area.height
+    ) {
+      return true;
+    }
+    return false;
+  };
+  var overlapHex = function(h, area) {
+    var p = HexLib.hex_to_pixel_windowed(layout, h);
+    var c = HexLib.hex_to_pixel_windowed(pingFrameLayout, HexLib.Hex(0, 0, 0));
+    var d = Math.sqrt(Math.pow(p.x - c.x, 2) - Math.pow(p.y - c.y, 2));
+    console.log(p);
+    console.log(c);
+    console.log(d);
+    if (d < area.r) {
+      return true;
+    }
+    return false;
+  };
   var findHex = function(e) {
     var offset = $("#GameBoard").offset();
     var found = false;

@@ -23,15 +23,16 @@ var remoteDatabase = (function() {
     var writeSeq = 0;
     var transactionID = "";
     var processRecordCallback;
-    var processUserCallback;
-      var processWorldCallback;
-      var leaderBoardCallback;
+      var processUserCallback;
+      var processDiffRecordCallback;
+    var processWorldCallback;
+    var leaderBoardCallback;
     var transactions = {};
     var outputQueue = [];
     var lastTransaction;
     var keyList = {};
-      var lDb;
-      var netWorker;
+    var lDb;
+    var netWorker;
     //in ms
     var kMinTimeBetweenUpdates = 10000000;
     // the # of transactions between atempts update the worldstate
@@ -164,7 +165,7 @@ var remoteDatabase = (function() {
       //    }
       //}
     };
-      var initModule = function(update, user, worldState,leaderBoard) {
+      var initModule = function(update, user, worldState, leaderBoard,Diff) {
       fbDatabase = firebase.database();
 
       globalUpdatesRef = fbDatabase.ref(update.location);
@@ -175,30 +176,42 @@ var remoteDatabase = (function() {
       //globalUpdatesRef.on('child_added', processRecord);
       usersRef = fbDatabase.ref(user.location);
       processUserCallback = user.callback;
-        usersRef.on("child_added", processUser);
-        
-        fbDatabase.ref(game.world()+"/pingRequest").on('child_added',processPingRequest);
-        worldStateLocation = worldState.location;
-        netWorker = new Worker('js/updateWorker.js');
-        netWorker.onmessage=processRecord;
-          netWorker.postMessage({data:game.world(),type:'world'});
-          console.log(leaderBoard);
-          leaderBoardCallback = leaderBoard.callback;
-          fbDatabase.ref(leaderBoard.location).on('child_added',processLeaderBoard);
-          fbDatabase.ref(leaderBoard.location).on('child_changed',processLeaderBoard);
+      usersRef.on("child_added", processUser);
+
+      fbDatabase
+        .ref(game.world() + "/pingRequest")
+        .on("child_added", processPingRequest);
+      worldStateLocation = worldState.location;
+      netWorker = new Worker("js/updateWorker.js");
+      netWorker.onmessage = processRecord;
+      netWorker.postMessage({ data: game.world(), type: "world" });
+      netWorker.postMessage({
+        type: "networkDelay",
+        data: game.constant.kAddedNetworkDelay
+      });
+      netWorker.postMessage({ type: "UID", data: game.uid() });
+//      console.log(leaderBoard);
+      leaderBoardCallback = leaderBoard.callback;
+      fbDatabase
+        .ref(leaderBoard.location)
+        .on("child_added", processLeaderBoard);
+      fbDatabase
+        .ref(leaderBoard.location)
+              .on("child_changed", processLeaderBoard);
+          processDiffRecordCallback = Diff.callback;
     };
 
-      var processLeaderBoard = function(s){
-          //console.log("processLeaderBoard");
-          //console.log(s.key+"  "+s.val());
-          var score = s.val();
-          var uid =s.key;
-          leaderBoardCallback({UID: uid, score: score});
-      };
+    var processLeaderBoard = function(s) {
+      //console.log("processLeaderBoard");
+      //console.log(s.key+"  "+s.val());
+      var score = s.val();
+      var uid = s.key;
+      leaderBoardCallback({ UID: uid, score: score });
+    };
     // writer functions
     // public
     var openTransaction = function() {
-//      transactionID = uuid();
+      //      transactionID = uuid();
       writeSeq = 0;
     };
 
@@ -212,34 +225,88 @@ var remoteDatabase = (function() {
       _outgoingCount++;
     };
     // public
-    var pushUpdate = function(r) {
+      var pushUpdate = function(r) {
       _outgoingCount++;
       //r.seq = writeSeq;
       //r.tID = transactionID;
       //r.count = 0;
       //console.log("pushupdate");
-      //console.log(r);\
-      var tr = Object.assign({}, r);
-      tr = game.util.deflateRecord(tr);
+      //game.util.printRecord(r);
+      radio("debug-transactions").broadcast({ f: "pushUpdate" });
+      radio("debug-transactions").broadcast(r);
+          var curr = lDb.query({hexID:r.hexID})[0];
+          curr = Object.assign({},curr);
+          var next = Object.assign({}, r);
+          if(curr){
+              curr = game.util.deflateRecord(curr);
+          }
+      next = game.util.deflateRecord(next);
       var localR = Object.assign({}, r);
       localR.local = 1;
 
-        processRecordCallback(localR);
-        var packet={data:tr,type:'record'};        
+      processRecordCallback(localR);
+      next.AID = game.uid();
+      var packet = { data: {curr:curr,next:next}, type: "record" };
       netWorker.postMessage(packet);
       writeSeq++;
+    };
+      var pushDiffUpdate = function(from, to) {
+          return;
+          var remoteTo , deflateTo;
+          var remoteFrom = Object.assign({},from);
+          if(to){
+              remoteTo = Object.assign({},to);
+              delete remoteTo.S;
+
+          }else{
+              remoteTo = null;
+          }
+          var localFrom = Object.assign({},from);
+
+          localFrom.local = 1;
+          processDiffRecordCallback(localFrom);
+          if(to){
+              var localTo   = Object.assign({},to);
+              localTo.local = 1;
+              processDiffRecordCallback(localTo);              
+          }
+          delete remoteFrom.S;
+          var packet = { data : {from :remoteFrom,
+                                 to: remoteTo},
+                         type :'diffRecord'};
+          netWorker.postMessage(packet);
     };
     // end writer functions
     var processRecord = function(r) {
       if (enableUpdateTrigger) {
         _incomingCount++;
       }
+        var data= r.data;
       //game.util.printRecord(r.data);
-        r = game.util.inflateRecord(r.data);
-      //game.util.printRecord(r);
-      processRecordCallback(Object.assign({}, r));
+        if(data.type === 'record'){
+            processHexRecord(data.record);
+        }else if(data.type === 'diff'){
+            processDiffRecord(data.record);
+            
+        }
     };
-
+      var processHexRecord = function(r){
+      //game.util.printRecord(r.data);
+        r = game.util.inflateRecord(r);
+      if (r.AID === game.uid()) {
+        return;
+      }
+      delete r.AID;
+      //game.util.printRecord(r);
+      radio("debug-transactions").broadcast({ f: "processRecord" });
+      radio("debug-transactions").broadcast(r);
+      processRecordCallback(Object.assign({}, r));
+      };
+      var processDiffRecord = function(r){
+          if(r.UID !== game.uid()){
+              processDiffRecordCallback(r);
+          }
+      };
     var insertSnapshot = function(s) {
       var r = s.val();
       lDb.insertOrUpdate(r);
@@ -259,66 +326,71 @@ var remoteDatabase = (function() {
     var updateWorldCoordinate = function(r) {
       var hexID = r.hexID;
       var tr = Object.assign({}, r);
-        tr= game.util.deflateRecord(r);
-        delete tr.hexID;
-      fbDatabase.ref(worldStateLocation + "/"+ hexID).set(tr);
+      tr = game.util.deflateRecord(r);
+      delete tr.hexID;
+      fbDatabase.ref(worldStateLocation + "/" + hexID).set(tr);
     };
-      var updatePingList = function(r){
-          var h = Object.assign({},r.h);
-          h.UID= r.UID;
-          fbDatabase.ref(game.world()+"/pingList/"+r.UID).set(h);
-      };
-      var pingOrigin;
-      var getPingData = function(callback,h){
-          //this will get the queens for players who have left the game.
-          pingOrigin=h;
-          fbDatabase.ref(game.world()+"/pingList/").once('value',function(s){parseQueenList(s);});
-          //get rid of the old lists
-          fbDatabase.ref(game.world()+"/pingRequest/"+game.uid()).remove();
-          fbDatabase.ref(game.world()+"/"+game.uid()).off();          
-          fbDatabase.ref(game.world()+"/"+game.uid()).remove();
-          //make a new request and listen for the responses.
-          fbDatabase.ref(game.world()+"/pingRequest/"+game.uid()).set(h);
-          fbDatabase.ref(game.world()+"/"+game.uid()).on('child_added',parsePingPoint);
-          
-      };
-      var parseQueenList = function(s){
-          s.forEach(function(childS){
-              if(HexLib.hex_distance(childS.val(),pingOrigin) < 100){
-                  sendPingPoint(childS.val());
-              }
-          });
-      };
-      var parsePingPoint = function(s){
-          var h = s.val();
-          sendPingPoint(h);
-      };
-      var sendPingPoint = function(h){
-          var uid = h.UID;
-          h=HexLib.hex_subtract(h,pingOrigin);
-          h.UID = uid;
-          radio('ping-data-point').broadcast(h);
-      };
-      var matchRange = function(r, h) {
-          if (r.UID != 0) {
-              var d = HexLib.hex_distance(h, r.h);
-              return d < 100;
-          }
-          return false;
-      };
+    var updatePingList = function(r) {
+      var h = Object.assign({}, r.h);
+      h.UID = r.UID;
+      fbDatabase.ref(game.world() + "/pingList/" + r.UID).set(h);
+    };
+    var pingOrigin;
+    var getPingData = function(callback, h) {
+      //this will get the queens for players who have left the game.
+      pingOrigin = h;
+      fbDatabase.ref(game.world() + "/pingList/").once("value", function(s) {
+        parseQueenList(s);
+      });
+      //get rid of the old lists
+      fbDatabase.ref(game.world() + "/pingRequest/" + game.uid()).remove();
+      fbDatabase.ref(game.world() + "/" + game.uid()).off();
+      fbDatabase.ref(game.world() + "/" + game.uid()).remove();
+      //make a new request and listen for the responses.
+      fbDatabase.ref(game.world() + "/pingRequest/" + game.uid()).set(h);
+      fbDatabase
+        .ref(game.world() + "/" + game.uid())
+        .on("child_added", parsePingPoint);
+    };
+    var parseQueenList = function(s) {
+      s.forEach(function(childS) {
+        if (HexLib.hex_distance(childS.val(), pingOrigin) < 100) {
+          sendPingPoint(childS.val());
+        }
+      });
+    };
+    var parsePingPoint = function(s) {
+      var h = s.val();
+      sendPingPoint(h);
+    };
+    var sendPingPoint = function(h) {
+      var uid = h.UID;
+      h = HexLib.hex_subtract(h, pingOrigin);
+      h.UID = uid;
+      radio("ping-data-point").broadcast(h);
+    };
+    var matchRange = function(r, h) {
+      if (r.UID != 0) {
+        var d = HexLib.hex_distance(h, r.h);
+        return d < 100;
+      }
+      return false;
+    };
 
-      var processPingRequest = function(s){
-          console.log("processPingRequest");
-          var pingUID = s.key;
-          var h = s.val();
-          var records = lDb.query(function(r){return matchRange(r,h);});
-          var ref = fbDatabase.ref(game.world()+"/"+pingUID);
-          records.forEach(function(r){
-              let h = Object.assign({},r.h);
-              h.UID= r.UID;              
-              ref.push(h);
-          });
-      };
+    var processPingRequest = function(s) {
+//      console.log("processPingRequest");
+      var pingUID = s.key;
+      var h = s.val();
+      var records = lDb.query(function(r) {
+        return matchRange(r, h);
+      });
+      var ref = fbDatabase.ref(game.world() + "/" + pingUID);
+      records.forEach(function(r) {
+        let h = Object.assign({}, r.h);
+        h.UID = r.UID;
+        ref.push(h);
+      });
+    };
     var readUpdates = function() {
       if (lastTransaction) {
         globalUpdatesRef
@@ -452,23 +524,23 @@ var remoteDatabase = (function() {
     var finalLink = function() {
       //console.log("finalLink");
       //console.log(linkList);
-//      linkList.forEach(function(l) {
-//       if (l.liveCallback) {
-//          if (l.liveStartAt) {
-//            //console.log("live start at with key "+ l.liveStartAt);
-//            fbDatabase
-//              .ref(game.world() + l.path)
-//              .orderByKey()
-//              .startAt(l.liveStartAt)
-//              .on("child_added", l.liveCallback);
-//          } else {
-//            //console.log("live start at begining");
-//            fbDatabase
-//              .ref(game.world() + l.path)
-//              .on("child_added", l.liveCallback);
-//          }
-//        }
-//      });
+      //      linkList.forEach(function(l) {
+      //       if (l.liveCallback) {
+      //          if (l.liveStartAt) {
+      //            //console.log("live start at with key "+ l.liveStartAt);
+      //            fbDatabase
+      //              .ref(game.world() + l.path)
+      //              .orderByKey()
+      //              .startAt(l.liveStartAt)
+      //              .on("child_added", l.liveCallback);
+      //          } else {
+      //            //console.log("live start at begining");
+      //            fbDatabase
+      //              .ref(game.world() + l.path)
+      //              .on("child_added", l.liveCallback);
+      //          }
+      //        }
+      //      });
       usersRef.on("child_added", processUser);
       enableUpdateTrigger = true;
       useInitCallback = false;
@@ -545,10 +617,6 @@ var remoteDatabase = (function() {
       }
       readUpdates();
     };
-    var processTerrain = function(s) {
-      var r = s.val();
-      processRecordCallback(r);
-    };
     var printRecord = function(r) {
       var s = "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
       s += " &nbsp;&nbsp;&nbsp; UID " + r["UID"];
@@ -559,24 +627,27 @@ var remoteDatabase = (function() {
       s += "<BR>";
       //  $("#recieved").append(s);
     };
-      var updateLeaderBoard  = function(update){
-          fbDatabase.ref(game.world()+"/leaderBoard/"+update.UID).set(update.score);
-      };
+    var updateLeaderBoard = function(update) {
+      fbDatabase
+        .ref(game.world() + "/leaderBoard/" + update.UID)
+        .set(update.score);
+    };
     return {
       initModule: initModule,
       openTransaction: openTransaction,
       pushUpdate: pushUpdate,
-        updateWorldCoordinate: updateWorldCoordinate,
-        updatePingList:updatePingList,
-        getPingData:getPingData,
+      pushDiffUpdate: pushDiffUpdate,
+      updateWorldCoordinate: updateWorldCoordinate,
+      updatePingList: updatePingList,
+      getPingData: getPingData,
       pushUser: pushUser,
       readWorld: readWorld,
       readUpdates: readUpdates,
       closeTransaction: closeTransaction,
       bandwidth: bandwidth,
       tryUpdate: tryUpdate,
-        setLDB: setLDB,
-        updateLeaderBoard : updateLeaderBoard,
+      setLDB: setLDB,
+      updateLeaderBoard: updateLeaderBoard,
       join: join
     };
   };

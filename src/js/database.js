@@ -46,6 +46,7 @@ database = (function(){
 	initModule            : remoteDb.initModule,
         openTransaction       : remoteDb.openTransaction,
         pushUpdate            : remoteDb.pushUpdate,
+        pushDiffUpdate        : remoteDb.pushDiffUpdate,
         updateWorldCoordinate : remoteDb.updateWorldCoordinate,
         updatePingList : remoteDb.updatePingList,
         getPingData : remoteDb.getPingData,

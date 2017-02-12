@@ -1,6 +1,6 @@
 var game={};
 importScripts("https://www.gstatic.com/firebasejs/3.6.4/firebase.js");
-importScripts("/js/game.util.js");
+importScripts("/js/game.util.0.4.18.js");
 importScripts("/js/lib/hex.js");
 var config = {
   apiKey: "AIzaSyCZVSQ4AEZ8KOauMqhefalUSrEG1pf7zUM",

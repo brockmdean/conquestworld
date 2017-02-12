@@ -1,6 +1,7 @@
 @files = (
           {file=> "./src/js/simpleTable.js", task=>"concat",output=>"js/conquerworld.js"},
           {file=> "./src/js/game.js", task=>"concat",output=>"js/conquerworld.js"},
+          {file=> "./src/js/game.constant.js", task=>"concat",output=>"js/conquerworld.js"},
           {file=> "./src/js/game.util.js", task=>"concat",output=>"js/conquerworld.js"},
           {file=> "./src/js/remoteDatabase.js", task=>"concat",output=>"js/conquerworld.js",fix =>"updateWorker"},
           {file=> "./src/js/database.js", task=>"concat",output=>"js/conquerworld.js"},
@@ -15,9 +16,12 @@
           {file=> "./src/defeat.jpg", task=>"copy"},
           {file=> "./src/play.jpg", task=>"copy"},
           {file=> "./src/splash.jpg", task=>"copy"},
+          {file=> "./src/Queen.png", task=>"copy"},
+          {file=> "./src/Wall.png", task=>"copy"},
           {file=> "./src/index.html", task=>"fix", fix=>"js/conquestworld"},
+          {file=> "./src/delay.html", task=>"fix", fix=>"js/conquestworld"},
          );
-
+system("rmdir" ,".\\public", "/s" ,"/q");
 $dest = "/public/";
 system("mkdir" ,".\\public");
 system("mkdir",".\\public\\js");
@@ -31,9 +35,12 @@ chomp($v[1]);
 chomp($v[2]);
 if($ARGV[0] eq "incmajor"){
   $v[0] = $v[0]+1;
+  $v[1] = 0;
+  $v[2] = 0;
 }
 if($ARGV[0] eq "incminor"){
   $v[1] = $v[1]+1;
+  $v[2] = 0 ;
 }
 if($ARGV[0] eq "incdaily"){
   $v[2] = $v[2]+1;
@@ -44,6 +51,7 @@ open($v,">","version.txt");
 print $v $v[0],"\n",$v[1],"\n",$v[2],"\n";
 close($v);
 $version = ".".$v[0].".".$v[1].".".$v[2];
+print"Version will be $version\n";
 $bundle ="./public/js/conquestworld".$version.".js";
 print $bundle,"\n";
 open($output,">", $bundle) || die "could not open output file conquerworld.js";
