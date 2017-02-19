@@ -57,20 +57,12 @@ game.util = (function() {
     console.log(s);
   };
  var formatRecord = function(record){
-     var s = "record ";
+     var s = "";
      for (var k in record) {
-         if (k === "h") {
-             s = s +
-                 k +
-                 " {" +
-                 record[k].q +
-                 ", " +
-                 record[k].r +
-                 ", " +
-                 record[k].s +
-                 " } ";
+         if (typeof record[k] === 'object') {
+           s = s + k + " { " + formatRecord(record[k]) + " }, " ;
          } else {
-             s = s + k + " " + record[k] + " ";
+             s = s + k + ":" + record[k] + ", ";
          }
      }
      return s;
@@ -146,6 +138,41 @@ game.util = (function() {
     }
     return true;
   };
+    var fBRecordsEqual = function(a,b){
+        if(!a){
+            if( !b){return true;}
+            else{
+                if(b.hasOwnProperty('UID')){return false;}
+                if(b.hasOwnProperty('A')){return false;}
+                if(b.hasOwnProperty('C')){return false;}
+                if(b.hasOwnProperty('K')){return false;}
+                if(b.hasOwnProperty('W')){return false;}
+                if(b.hasOwnProperty('M')){return false;}
+                return true;
+            }
+        }else{
+        var t1 = testProperty('UID',a,b);
+        var t2 = testProperty('A',a,b);
+        var t3 = testProperty('C',a,b);
+        var t4 = testProperty('K',a,b);
+        var t5 = testProperty('W',a,b);
+        var t6 = testProperty('M',a,b);
+            return t1 && t2 && t3 && t4 && t5 && t6 ;
+        }
+    };
+    var testProperty = function(p,a,b){
+        if(a.hasOwnProperty(p)){
+            if(b.hasOwnProperty(p)){
+                if(a[p] === b[p]){return true;}return false;
+            }
+            return false;
+        }else if(!b.hasOwnProperty(p)){
+            return true;
+        }
+        return false;
+            
+        
+    };
   var base64 = "0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
   var getID = function() {
     var array = new Uint8Array(8);
@@ -176,7 +203,8 @@ game.util = (function() {
     createRecord: createRecord,
       printRecord: printRecord,
       formatRecord:formatRecord,
-    recordsEqual: recordsEqual,
+      recordsEqual: recordsEqual,
+      fBRecordsEqual : fBRecordsEqual,
     getID: getID
   };
 })();

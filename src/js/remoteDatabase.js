@@ -23,8 +23,8 @@ var remoteDatabase = (function() {
     var writeSeq = 0;
     var transactionID = "";
     var processRecordCallback;
-      var processUserCallback;
-      var processDiffRecordCallback;
+    var processUserCallback;
+    var processDiffRecordCallback;
     var processWorldCallback;
     var leaderBoardCallback;
     var transactions = {};
@@ -165,7 +165,7 @@ var remoteDatabase = (function() {
       //    }
       //}
     };
-      var initModule = function(update, user, worldState, leaderBoard,Diff) {
+    var initModule = function(update, user, worldState, leaderBoard, Diff) {
       fbDatabase = firebase.database();
 
       globalUpdatesRef = fbDatabase.ref(update.location);
@@ -190,15 +190,15 @@ var remoteDatabase = (function() {
         data: game.constant.kAddedNetworkDelay
       });
       netWorker.postMessage({ type: "UID", data: game.uid() });
-//      console.log(leaderBoard);
+      //      console.log(leaderBoard);
       leaderBoardCallback = leaderBoard.callback;
       fbDatabase
         .ref(leaderBoard.location)
         .on("child_added", processLeaderBoard);
       fbDatabase
         .ref(leaderBoard.location)
-              .on("child_changed", processLeaderBoard);
-          processDiffRecordCallback = Diff.callback;
+        .on("child_changed", processLeaderBoard);
+      processDiffRecordCallback = Diff.callback;
     };
 
     var processLeaderBoard = function(s) {
@@ -225,88 +225,98 @@ var remoteDatabase = (function() {
       _outgoingCount++;
     };
     // public
-      var pushUpdate = function(r) {
+    var pushUpdate = function(r, action ,force) {
       _outgoingCount++;
       //r.seq = writeSeq;
       //r.tID = transactionID;
       //r.count = 0;
-      //console.log("pushupdate");
-      //game.util.printRecord(r);
+      console.log("pushupdate");
+      console.log("     " + game.util.formatRecord(r));
       radio("debug-transactions").broadcast({ f: "pushUpdate" });
       radio("debug-transactions").broadcast(r);
-          var curr = lDb.query({hexID:r.hexID})[0];
-          curr = Object.assign({},curr);
-          var next = Object.assign({}, r);
-          if(curr){
-              curr = game.util.deflateRecord(curr);
-          }
+      var curr = lDb.query({ hexID: r.hexID })[0];
+      var next = Object.assign({}, r);
+      if (curr) {
+        curr = Object.assign({}, curr);
+        delete curr.hexID;
+        curr = game.util.deflateRecord(curr);
+      }
       next = game.util.deflateRecord(next);
       var localR = Object.assign({}, r);
       localR.local = 1;
 
       processRecordCallback(localR);
       next.AID = game.uid();
-      var packet = { data: {curr:curr,next:next}, type: "record" };
+      var packet = { data: { curr: curr, next: next, action:action}, type: "record" };
+      if (force) {
+        netWorker.postMessage(packet);
+      }
       netWorker.postMessage(packet);
+
       writeSeq++;
     };
-      var pushDiffUpdate = function(from, to) {
-          return;
-          var remoteTo , deflateTo;
-          var remoteFrom = Object.assign({},from);
-          if(to){
-              remoteTo = Object.assign({},to);
-              delete remoteTo.S;
+    var pushDiffUpdate = function(from, to) {
+      return;
+      var remoteTo, deflateTo;
+      var remoteFrom = Object.assign({}, from);
+      if (to) {
+        remoteTo = Object.assign({}, to);
+        delete remoteTo.S;
+      } else {
+        remoteTo = null;
+      }
+      var localFrom = Object.assign({}, from);
 
-          }else{
-              remoteTo = null;
-          }
-          var localFrom = Object.assign({},from);
-
-          localFrom.local = 1;
-          processDiffRecordCallback(localFrom);
-          if(to){
-              var localTo   = Object.assign({},to);
-              localTo.local = 1;
-              processDiffRecordCallback(localTo);              
-          }
-          delete remoteFrom.S;
-          var packet = { data : {from :remoteFrom,
-                                 to: remoteTo},
-                         type :'diffRecord'};
-          netWorker.postMessage(packet);
+      localFrom.local = 1;
+      processDiffRecordCallback(localFrom);
+      if (to) {
+        var localTo = Object.assign({}, to);
+        localTo.local = 1;
+        processDiffRecordCallback(localTo);
+      }
+      delete remoteFrom.S;
+      var packet = {
+        data: {
+          from: remoteFrom,
+          to: remoteTo
+        },
+        type: "diffRecord"
+      };
+      netWorker.postMessage(packet);
     };
     // end writer functions
     var processRecord = function(r) {
       if (enableUpdateTrigger) {
         _incomingCount++;
       }
-        var data= r.data;
+      var data = r.data;
       //game.util.printRecord(r.data);
-        if(data.type === 'record'){
-            processHexRecord(data.record);
-        }else if(data.type === 'diff'){
-            processDiffRecord(data.record);
-            
-        }
+      if (data.type === "record") {
+        processHexRecord(data.record);
+      } else if (data.type === "diff") {
+        processDiffRecord(data.record);
+      }
     };
-      var processHexRecord = function(r){
-      //game.util.printRecord(r.data);
-        r = game.util.inflateRecord(r);
+    var processHexRecord = function(r) {
+      console.log("processHexRecord");
+      r = game.util.inflateRecord(r);
       if (r.AID === game.uid()) {
+        console.log("     filtering "+game.util.formatRecord(r));
         return;
       }
       delete r.AID;
       //game.util.printRecord(r);
+      console.log("     processing "+game.util.formatRecord(r));
+
       radio("debug-transactions").broadcast({ f: "processRecord" });
       radio("debug-transactions").broadcast(r);
       processRecordCallback(Object.assign({}, r));
-      };
-      var processDiffRecord = function(r){
-          if(r.UID !== game.uid()){
-              processDiffRecordCallback(r);
-          }
-      };
+    };
+    var processDiffRecord = function(r) {
+      if (r.UID !== game.uid()) {
+        processDiffRecordCallback(r);
+      }
+    };
     var insertSnapshot = function(s) {
       var r = s.val();
       lDb.insertOrUpdate(r);
@@ -378,7 +388,7 @@ var remoteDatabase = (function() {
     };
 
     var processPingRequest = function(s) {
-//      console.log("processPingRequest");
+      //      console.log("processPingRequest");
       var pingUID = s.key;
       var h = s.val();
       var records = lDb.query(function(r) {
@@ -653,4 +663,3 @@ var remoteDatabase = (function() {
   };
   return { create: create };
 })();
-

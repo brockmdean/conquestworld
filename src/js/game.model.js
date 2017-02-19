@@ -120,11 +120,12 @@ game.model = (function() {
         //TODO do we really need this insert?
         neighborRecords.push(t);
         db.insert(t);
-          rDB.pushUpdate(t);
-          var trans = game.util.getID();
-          var from = Object.assign({},t);
-          from.T = trans;
-          rDB.pushDiffUpdate(from , null);
+        var action = {type:"createRef",diff:{}};
+        rDB.pushUpdate(t,action , false);
+        var trans = game.util.getID();
+        var from = Object.assign({},t);
+        from.T = trans;
+        rDB.pushDiffUpdate(from , null);
 
       }
     }
@@ -421,8 +422,9 @@ game.model = (function() {
     cursorRecord = r;
       //    db.insert(game.util.createRecord({ hexID: r.hexID }));
       var expected = null;
-    // r.expected = expected;
-      rDB.pushUpdate(r);
+      // r.expected = expected;
+      var action ={type : "createKing", diff: {K:1,A:5}};
+      rDB.pushUpdate(r,action,true);
     var trans = game.util.getID();
 
 //    var from = game.util.createRecord({ hexID: r.hexID });
@@ -468,9 +470,10 @@ game.model = (function() {
     }
     var count = record.A + 1;
     var newRecord = Object.assign({}, record);
-    newRecord.A = count;
+      newRecord.A = count;
+      var action = { type : "spawn" , diff : {A:1}};
     rDB.openTransaction();
-      rDB.pushUpdate(newRecord);
+      rDB.pushUpdate(newRecord, action, false);
     rDB.closeTransaction();
     var next;
     var trans = game.util.getID();
@@ -590,8 +593,9 @@ game.model = (function() {
       if (r.UID == 0) {
         r.UID = game.uid();
       }
-      // game.util.printRecord(record);
-      rDB.pushUpdate(r);
+        // game.util.printRecord(record);
+      var action = {type : "buildCity", diff:{C:1}};
+      rDB.pushUpdate(r,action,false);
       radio("draw-gold").broadcast(gold);
       var trans = game.util.getID();
       var next = { C: 1, UID: game.uid(), T: trans, hexID: record.hexID };
@@ -640,14 +644,19 @@ game.model = (function() {
       radio("update-wall-cost").broadcast(kWallCost);
       totalWallsBuilt++;
       totalWallCost += thisWallCost;
-      gold -= thisWallCost;
+        gold -= thisWallCost;
+
+        var action = {type : "buildWall" , diff:{W:kWallStrength + wallStrength}};
       rDB.pushUpdate(
         game.util.createRecord({
           hexID: record.hexID,
           A: record.A,
           W: kWallStrength + wallStrength,
           UID: game.uid()
-        })
+        }),
+        action,
+        false
+        
       );
       radio("draw-gold").broadcast(gold);
       var trans = game.util.getID();
@@ -769,8 +778,8 @@ game.model = (function() {
     targetRecord.K = 1;
     targetRecord.UID = game.uid();
     //targetRecord.Cursor = 1;
-    rDB.pushUpdate(r);
-    rDB.pushUpdate(targetRecord);
+    rDB.pushUpdate(r,{type:"moveKing",diff:{K:-1}},false);
+    rDB.pushUpdate(targetRecord,{type:"moveKing",diff:{K:1}},false);
     var trans = game.util.getID();
     var nextR = {
       K: -1,
@@ -1098,8 +1107,8 @@ game.model = (function() {
     }
     //db.update(record);
     //db.update(targetRecord);
-    rDB.pushUpdate(record);
-    rDB.pushUpdate(targetRecord);
+    rDB.pushUpdate(record,{type:"moveArmy",diff:{A: 1}} , false);
+    rDB.pushUpdate(targetRecord,{type:"moveArmy",diff:{A: 1}} , false);
     //updatedRecords.push(targetRecord);
     //updatedRecords.push(record);
   };
@@ -1206,7 +1215,8 @@ game.model = (function() {
 
     var newR = Object.assign({}, r);
     newR.A = kTroopLimit;
-    rDB.pushUpdate(newR);
+    var action ={type :"spawn",diff:{A:diff}};
+    rDB.pushUpdate(newR,action,false);
     var trans = game.util.getID();
     var next = { A: diff, UID: game.uid(), T: trans, hexID: r.hexID };
     radio("diff").broadcast(next);

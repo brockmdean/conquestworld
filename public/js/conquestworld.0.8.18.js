@@ -333,7 +333,7 @@ game.constant={};
 game.constant.kAddedNetworkDelay = 0;
 game.constant.kPingCost = 5000;
 game.constant.kPingRange = 100;
-game.constant.kSpawnRange = 250;
+game.constant.kSpawnRange = 150;
 /* global game,  */
 /* eslint semi:["error", "always"] , indent:["error",2] , space-before-blocks:["error","never"] */
 /* eslint key-spacing: ["error", {
@@ -393,20 +393,12 @@ game.util = (function() {
     console.log(s);
   };
  var formatRecord = function(record){
-     var s = "record ";
+     var s = "";
      for (var k in record) {
-         if (k === "h") {
-             s = s +
-                 k +
-                 " {" +
-                 record[k].q +
-                 ", " +
-                 record[k].r +
-                 ", " +
-                 record[k].s +
-                 " } ";
+         if (typeof record[k] === 'object') {
+           s = s + k + " { " + formatRecord(record[k]) + " }, " ;
          } else {
-             s = s + k + " " + record[k] + " ";
+             s = s + k + ":" + record[k] + ", ";
          }
      }
      return s;
@@ -482,6 +474,41 @@ game.util = (function() {
     }
     return true;
   };
+    var fBRecordsEqual = function(a,b){
+        if(!a){
+            if( !b){return true;}
+            else{
+                if(b.hasOwnProperty('UID')){return false;}
+                if(b.hasOwnProperty('A')){return false;}
+                if(b.hasOwnProperty('C')){return false;}
+                if(b.hasOwnProperty('K')){return false;}
+                if(b.hasOwnProperty('W')){return false;}
+                if(b.hasOwnProperty('M')){return false;}
+                return true;
+            }
+        }else{
+        var t1 = testProperty('UID',a,b);
+        var t2 = testProperty('A',a,b);
+        var t3 = testProperty('C',a,b);
+        var t4 = testProperty('K',a,b);
+        var t5 = testProperty('W',a,b);
+        var t6 = testProperty('M',a,b);
+            return t1 && t2 && t3 && t4 && t5 && t6 ;
+        }
+    };
+    var testProperty = function(p,a,b){
+        if(a.hasOwnProperty(p)){
+            if(b.hasOwnProperty(p)){
+                if(a[p] === b[p]){return true;}return false;
+            }
+            return false;
+        }else if(!b.hasOwnProperty(p)){
+            return true;
+        }
+        return false;
+            
+        
+    };
   var base64 = "0123456789abcdefghijklmnopqustuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
   var getID = function() {
     var array = new Uint8Array(8);
@@ -512,7 +539,8 @@ game.util = (function() {
     createRecord: createRecord,
       printRecord: printRecord,
       formatRecord:formatRecord,
-    recordsEqual: recordsEqual,
+      recordsEqual: recordsEqual,
+      fBRecordsEqual : fBRecordsEqual,
     getID: getID
   };
 })();
@@ -542,8 +570,8 @@ var remoteDatabase = (function() {
     var writeSeq = 0;
     var transactionID = "";
     var processRecordCallback;
-      var processUserCallback;
-      var processDiffRecordCallback;
+    var processUserCallback;
+    var processDiffRecordCallback;
     var processWorldCallback;
     var leaderBoardCallback;
     var transactions = {};
@@ -684,7 +712,7 @@ var remoteDatabase = (function() {
       //    }
       //}
     };
-      var initModule = function(update, user, worldState, leaderBoard,Diff) {
+    var initModule = function(update, user, worldState, leaderBoard, Diff) {
       fbDatabase = firebase.database();
 
       globalUpdatesRef = fbDatabase.ref(update.location);
@@ -701,7 +729,7 @@ var remoteDatabase = (function() {
         .ref(game.world() + "/pingRequest")
         .on("child_added", processPingRequest);
       worldStateLocation = worldState.location;
-      netWorker = new Worker("js/updateWorker.0.4.18.js");
+      netWorker = new Worker("js/updateWorker.0.8.18.js");
       netWorker.onmessage = processRecord;
       netWorker.postMessage({ data: game.world(), type: "world" });
       netWorker.postMessage({
@@ -709,15 +737,15 @@ var remoteDatabase = (function() {
         data: game.constant.kAddedNetworkDelay
       });
       netWorker.postMessage({ type: "UID", data: game.uid() });
-//      console.log(leaderBoard);
+      //      console.log(leaderBoard);
       leaderBoardCallback = leaderBoard.callback;
       fbDatabase
         .ref(leaderBoard.location)
         .on("child_added", processLeaderBoard);
       fbDatabase
         .ref(leaderBoard.location)
-              .on("child_changed", processLeaderBoard);
-          processDiffRecordCallback = Diff.callback;
+        .on("child_changed", processLeaderBoard);
+      processDiffRecordCallback = Diff.callback;
     };
 
     var processLeaderBoard = function(s) {
@@ -744,88 +772,98 @@ var remoteDatabase = (function() {
       _outgoingCount++;
     };
     // public
-      var pushUpdate = function(r) {
+    var pushUpdate = function(r, action ,force) {
       _outgoingCount++;
       //r.seq = writeSeq;
       //r.tID = transactionID;
       //r.count = 0;
-      //console.log("pushupdate");
-      //game.util.printRecord(r);
+      console.log("pushupdate");
+      console.log("     " + game.util.formatRecord(r));
       radio("debug-transactions").broadcast({ f: "pushUpdate" });
       radio("debug-transactions").broadcast(r);
-          var curr = lDb.query({hexID:r.hexID})[0];
-          curr = Object.assign({},curr);
-          var next = Object.assign({}, r);
-          if(curr){
-              curr = game.util.deflateRecord(curr);
-          }
+      var curr = lDb.query({ hexID: r.hexID })[0];
+      var next = Object.assign({}, r);
+      if (curr) {
+        curr = Object.assign({}, curr);
+        delete curr.hexID;
+        curr = game.util.deflateRecord(curr);
+      }
       next = game.util.deflateRecord(next);
       var localR = Object.assign({}, r);
       localR.local = 1;
 
       processRecordCallback(localR);
       next.AID = game.uid();
-      var packet = { data: {curr:curr,next:next}, type: "record" };
+      var packet = { data: { curr: curr, next: next, action:action}, type: "record" };
+      if (force) {
+        netWorker.postMessage(packet);
+      }
       netWorker.postMessage(packet);
+
       writeSeq++;
     };
-      var pushDiffUpdate = function(from, to) {
-          return;
-          var remoteTo , deflateTo;
-          var remoteFrom = Object.assign({},from);
-          if(to){
-              remoteTo = Object.assign({},to);
-              delete remoteTo.S;
+    var pushDiffUpdate = function(from, to) {
+      return;
+      var remoteTo, deflateTo;
+      var remoteFrom = Object.assign({}, from);
+      if (to) {
+        remoteTo = Object.assign({}, to);
+        delete remoteTo.S;
+      } else {
+        remoteTo = null;
+      }
+      var localFrom = Object.assign({}, from);
 
-          }else{
-              remoteTo = null;
-          }
-          var localFrom = Object.assign({},from);
-
-          localFrom.local = 1;
-          processDiffRecordCallback(localFrom);
-          if(to){
-              var localTo   = Object.assign({},to);
-              localTo.local = 1;
-              processDiffRecordCallback(localTo);              
-          }
-          delete remoteFrom.S;
-          var packet = { data : {from :remoteFrom,
-                                 to: remoteTo},
-                         type :'diffRecord'};
-          netWorker.postMessage(packet);
+      localFrom.local = 1;
+      processDiffRecordCallback(localFrom);
+      if (to) {
+        var localTo = Object.assign({}, to);
+        localTo.local = 1;
+        processDiffRecordCallback(localTo);
+      }
+      delete remoteFrom.S;
+      var packet = {
+        data: {
+          from: remoteFrom,
+          to: remoteTo
+        },
+        type: "diffRecord"
+      };
+      netWorker.postMessage(packet);
     };
     // end writer functions
     var processRecord = function(r) {
       if (enableUpdateTrigger) {
         _incomingCount++;
       }
-        var data= r.data;
+      var data = r.data;
       //game.util.printRecord(r.data);
-        if(data.type === 'record'){
-            processHexRecord(data.record);
-        }else if(data.type === 'diff'){
-            processDiffRecord(data.record);
-            
-        }
+      if (data.type === "record") {
+        processHexRecord(data.record);
+      } else if (data.type === "diff") {
+        processDiffRecord(data.record);
+      }
     };
-      var processHexRecord = function(r){
-      //game.util.printRecord(r.data);
-        r = game.util.inflateRecord(r);
+    var processHexRecord = function(r) {
+      console.log("processHexRecord");
+      r = game.util.inflateRecord(r);
       if (r.AID === game.uid()) {
+        console.log("     filtering "+game.util.formatRecord(r));
         return;
       }
       delete r.AID;
       //game.util.printRecord(r);
+      console.log("     processing "+game.util.formatRecord(r));
+
       radio("debug-transactions").broadcast({ f: "processRecord" });
       radio("debug-transactions").broadcast(r);
       processRecordCallback(Object.assign({}, r));
-      };
-      var processDiffRecord = function(r){
-          if(r.UID !== game.uid()){
-              processDiffRecordCallback(r);
-          }
-      };
+    };
+    var processDiffRecord = function(r) {
+      if (r.UID !== game.uid()) {
+        processDiffRecordCallback(r);
+      }
+    };
     var insertSnapshot = function(s) {
       var r = s.val();
       lDb.insertOrUpdate(r);
@@ -897,7 +935,7 @@ var remoteDatabase = (function() {
     };
 
     var processPingRequest = function(s) {
-//      console.log("processPingRequest");
+      //      console.log("processPingRequest");
       var pingUID = s.key;
       var h = s.val();
       var records = lDb.query(function(r) {
@@ -1172,7 +1210,6 @@ var remoteDatabase = (function() {
   };
   return { create: create };
 })();
-
 /* global game  */
 /* eslint semi:["error", "always"] , indent:["error",4] , space-before-blocks:["error","never"] */
 /* eslint key-spacing: ["error", {
@@ -2585,11 +2622,12 @@ game.model = (function() {
         //TODO do we really need this insert?
         neighborRecords.push(t);
         db.insert(t);
-          rDB.pushUpdate(t);
-          var trans = game.util.getID();
-          var from = Object.assign({},t);
-          from.T = trans;
-          rDB.pushDiffUpdate(from , null);
+        var action = {type:"createRef",diff:{}};
+        rDB.pushUpdate(t,action , false);
+        var trans = game.util.getID();
+        var from = Object.assign({},t);
+        from.T = trans;
+        rDB.pushDiffUpdate(from , null);
 
       }
     }
@@ -2886,8 +2924,9 @@ game.model = (function() {
     cursorRecord = r;
       //    db.insert(game.util.createRecord({ hexID: r.hexID }));
       var expected = null;
-    // r.expected = expected;
-      rDB.pushUpdate(r);
+      // r.expected = expected;
+      var action ={type : "createKing", diff: {K:1,A:5}};
+      rDB.pushUpdate(r,action,true);
     var trans = game.util.getID();
 
 //    var from = game.util.createRecord({ hexID: r.hexID });
@@ -2933,9 +2972,10 @@ game.model = (function() {
     }
     var count = record.A + 1;
     var newRecord = Object.assign({}, record);
-    newRecord.A = count;
+      newRecord.A = count;
+      var action = { type : "spawn" , diff : {A:1}};
     rDB.openTransaction();
-      rDB.pushUpdate(newRecord);
+      rDB.pushUpdate(newRecord, action, false);
     rDB.closeTransaction();
     var next;
     var trans = game.util.getID();
@@ -3055,8 +3095,9 @@ game.model = (function() {
       if (r.UID == 0) {
         r.UID = game.uid();
       }
-      // game.util.printRecord(record);
-      rDB.pushUpdate(r);
+        // game.util.printRecord(record);
+      var action = {type : "buildCity", diff:{C:1}};
+      rDB.pushUpdate(r,action,false);
       radio("draw-gold").broadcast(gold);
       var trans = game.util.getID();
       var next = { C: 1, UID: game.uid(), T: trans, hexID: record.hexID };
@@ -3105,14 +3146,19 @@ game.model = (function() {
       radio("update-wall-cost").broadcast(kWallCost);
       totalWallsBuilt++;
       totalWallCost += thisWallCost;
-      gold -= thisWallCost;
+        gold -= thisWallCost;
+
+        var action = {type : "buildWall" , diff:{W:kWallStrength + wallStrength}};
       rDB.pushUpdate(
         game.util.createRecord({
           hexID: record.hexID,
           A: record.A,
           W: kWallStrength + wallStrength,
           UID: game.uid()
-        })
+        }),
+        action,
+        false
+        
       );
       radio("draw-gold").broadcast(gold);
       var trans = game.util.getID();
@@ -3234,8 +3280,8 @@ game.model = (function() {
     targetRecord.K = 1;
     targetRecord.UID = game.uid();
     //targetRecord.Cursor = 1;
-    rDB.pushUpdate(r);
-    rDB.pushUpdate(targetRecord);
+    rDB.pushUpdate(r,{type:"moveKing",diff:{K:-1}},false);
+    rDB.pushUpdate(targetRecord,{type:"moveKing",diff:{K:1}},false);
     var trans = game.util.getID();
     var nextR = {
       K: -1,
@@ -3563,8 +3609,8 @@ game.model = (function() {
     }
     //db.update(record);
     //db.update(targetRecord);
-    rDB.pushUpdate(record);
-    rDB.pushUpdate(targetRecord);
+    rDB.pushUpdate(record,{type:"moveArmy",diff:{A: 1}} , false);
+    rDB.pushUpdate(targetRecord,{type:"moveArmy",diff:{A: 1}} , false);
     //updatedRecords.push(targetRecord);
     //updatedRecords.push(record);
   };
@@ -3671,7 +3717,8 @@ game.model = (function() {
 
     var newR = Object.assign({}, r);
     newR.A = kTroopLimit;
-    rDB.pushUpdate(newR);
+    var action ={type :"spawn",diff:{A:diff}};
+    rDB.pushUpdate(newR,action,false);
     var trans = game.util.getID();
     var next = { A: diff, UID: game.uid(), T: trans, hexID: r.hexID };
     radio("diff").broadcast(next);
