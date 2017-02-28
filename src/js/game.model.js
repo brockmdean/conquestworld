@@ -25,6 +25,9 @@ game.model = (function() {
   var matchSelected = function(r) {
     return r.S;
   };
+  var getDirty = function(r){
+    return r.dirty;
+  };
   var matchSelectedArmies = function(r) {
     return r.S && r.UID == game.uid() && r.A;
   };
@@ -69,6 +72,7 @@ game.model = (function() {
   db.addIndex(matchTroopSites);
   db.addIndex(matchSelectedArmies);
   db.addIndex(matchSelected);
+  db.addIndex(getDirty);
   var leaderBoard = [];
   var moveDb;
   var gold = 2000;
@@ -110,6 +114,7 @@ game.model = (function() {
     });
 
     for (var i = 0; i < neighborHexs.length; i++) {
+      window.nChecks++;
       if (db.keyExists(HexLib.hexToId(neighborHexs[i]))) {
         t = db.query({ hexID: HexLib.hexToId(neighborHexs[i]) });
         neighborRecords.push(t[0]);
@@ -131,7 +136,38 @@ game.model = (function() {
     }
     return neighborRecords;
   };
-
+  //return the list of hexs taht are distance from the center.
+  var findFrontier = function(center ,distance)
+  {
+    var frontier = [];
+    var dirs=['east','down','north','up','west','south'];
+    var centerHex = center.h;
+    var hex = HexLib.hex_add(centerHex ,
+                             HexLib.hex_scale(HexLib.hex_directions.east,distance));
+    for( var i =0 ; i<6; i++){
+      for(var j = 0; j<distance; j++){
+        window.nChecks++;        
+        frontier.push(hex);
+        hex = HexLib.hex_neighbor(hex,dirs[i]);
+      }
+    }
+    return frontier;
+  };
+ //start listening to the hexes we might move into soon
+  var prefetchFrontier = function(center,distance){
+    for(var i = 2; i <= distance; i++){
+      var f = findFrontier(center,i);
+      f.forEach(function(_f){
+        if (!db.keyExists(HexLib.hexToId(_f))) {
+          var t = game.util.createRecord({ hexID: HexLib.hexToId(_f)});
+          db.insert(t);
+          var action = {type:"createRef",diff:{}};
+          rDB.pushUpdate(t,action,false);
+        }
+      });      
+    }
+  };
+    
   // -------------------- END UTILITY METHODS -------------------
   var toggleSelection = function(data) {
     var hexID = data.hexID;
@@ -142,18 +178,15 @@ game.model = (function() {
     if (records.length == 0) {
       return;
     }
-    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    //cursorRecord.Cursor = 0;
-    //radio("draw-hexagon").broadcast(cursorRecord);
-    // console.log("game.model received toggle-selection message"+data.hexID);
-    // console.log("count "+records.length);
-    // assert that there is only one record
-    // if(records.length>1){console.log("toggleSelection found "+records.length+" records")}
+    db.update({ hexID: cursorRecord.hexID, dirty: 1 });
     record = records[0];
     cursorRecord = record;
     radio("update-cursor").broadcast(cursorRecord);
     if (!record.V) {
       return;
+    }
+    if (record.UID !== 0) {
+      radio("message").broadcast("Hex belongs to : " + playerMap[record.UID]);
     }
     if (record.UID !== game.uid() && record.UID !== 0) {
       radio("message").broadcast("Hex belongs to : " + playerMap[record.UID]);
@@ -165,16 +198,15 @@ game.model = (function() {
     } else {
       selected = 1;
     }
-    db.update({ hexID: record.hexID, S: selected });
+    db.update({ hexID: record.hexID, S: selected, dirty:1});
     record.S = selected;
-    //radio("draw-hexagon").broadcast(record);
   };
   var clearSelection = function() {
     var records = db.matchSelected();
     records.forEach(function(r) {
       r.S = 0;
+      r.dirty=1;
       db.update(r);
-      //radio("draw-hexagon").broadcast(r);
     });
   };
   //    var updateWorld = function (r){
@@ -280,7 +312,7 @@ game.model = (function() {
   };
   var update = function(record) {
     //      console.log("update");
-    radio("debug-transactions").broadcast({ f: "Update" });
+//    radio("debug-transactions").broadcast({ f: "Update" });
     window.updateCount++;
     var r;
     var records, n, localR, localV;
@@ -291,7 +323,7 @@ game.model = (function() {
     // if we have recieved this update before, dont do it again.
     // radio('debug-transactions').broadcast({ID:snapshot.key,date:record.date,r:record.record});
     r = Object.assign({}, record);
-    radio("debug-transactions").broadcast(r);
+//    radio("debug-transactions").broadcast(r);
 
     //game.util.printRecord(r);
     // because the selected (S) field is sometimes passed through
@@ -320,11 +352,8 @@ game.model = (function() {
       window.updateWorkCount++;
       //        console.log("local Record");
       //        game.util.printRecord(localR[0]);
-      radio("debug-transactions").broadcast(localR[0]);
+//      radio("debug-transactions").broadcast(localR[0]);
 
-      if (r.UID !== game.uid()) {
-        r.S = 0;
-      }
       // if the record does exist, keep the local visibility
       //console.log("update a record from fb")
       localV = localR[0].V;
@@ -336,6 +365,13 @@ game.model = (function() {
         r.Marker = localR[0].Marker;
       }
       delete r.local;
+      //cant select a hex that's not ours.
+      //and if this hex was selected , but was conquered, then it
+      //needs to be unselected.
+      if (r.UID !== game.uid()) {
+        r.S = 0;
+      }
+
       //game.util.printRecord(r);
       // console.log("there are "+records.length+" records with "+r.hexID);
       // game.util.printRecord(r);
@@ -369,24 +405,25 @@ game.model = (function() {
       }
       db.update(r);
     }
-    if (r.V || game.visibility()) {
-      //radio("draw-hexagon").broadcast(r);
-    }
-
     // update the visibility of the neighbors
+    // also prefetch the frontier
     if (r.UID == game.uid() && (r.A || r.C || r.K || r.W)) {
       n = findNeighbors(r);
       n.forEach(function(_r) {
         if (!_r.V) {
           _r.V = 1;
+          _r.dirty=1;
           db.update(_r);
           window.neighborDrawing++;
-          //radio("draw-hexagon").broadcast(_r);
         }
       });
+      var frontierDistance = Math.ceil(game.constant.latency / game.constant.keyInterval)+1;
+      if(frontierDistance < 2 ){frontierDistance=2;}
+//      console.log("frontierDistance :"+frontierDistance);
+      prefetchFrontier(r,frontierDistance);
     }
   };
-
+  
   // visibility alg
   // 1. when we get an update from fb set V=1, find neighbors and settable
   //   their visibility to one also.
@@ -420,11 +457,11 @@ game.model = (function() {
       V: 1
     });
     cursorRecord = r;
-      //    db.insert(game.util.createRecord({ hexID: r.hexID }));
-      var expected = null;
-      // r.expected = expected;
-      var action ={type : "createKing", diff: {K:1,A:5}};
-      rDB.pushUpdate(r,action,true);
+    db.insert(r);
+    var expected = null;
+    // r.expected = expected;
+    var action ={type : "createKing", diff: {K:1,A:5}};
+    rDB.pushUpdate(r,action,true);
     var trans = game.util.getID();
 
 //    var from = game.util.createRecord({ hexID: r.hexID });
@@ -637,7 +674,7 @@ game.model = (function() {
       }
     }
     if (
-      record.K == 0 && record.M == 0 && record.C == 0 && gold >= thisWallCost
+      record.K == 0 && record.M == 0 && record.C == 0 && gold >= (kWallCost + kWallCostInc)
     ) {
       kWallCost += kWallCostInc;
       thisWallCost = kWallCost;
@@ -716,10 +753,9 @@ game.model = (function() {
       return;
     }
     //game.util.printRecord(targetRecord);
-    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    //radio("draw-hexagon").broadcast(cursorRecord);
+    db.update({ hexID: cursorRecord.hexID, dirty: 1 });
     cursorRecord = targetRecord;
-    db.update({ hexID: cursorRecord.hexID, S: 1 });
+    db.update({ hexID: cursorRecord.hexID, S: 1,dirty:1 });
     radio("update-cursor").broadcast(cursorRecord);
   };
   var move = function(dir) {
@@ -729,6 +765,7 @@ game.model = (function() {
     window.neighborDrawing = 0;
     window.updateCount = 0;
     window.updateWorkCount = 0;
+    window.nChecks = 0;
     if (queenOn) {
       moveQueen(dir);
       return;
@@ -737,6 +774,9 @@ game.model = (function() {
     // console.log("=======GeoSort "+dir);
     records.sort(geoSort(dir));
     // console.log("=======GeoSort "+dir);
+    records.forEach(function(record) {
+      console.log(record.hexID);
+    });
     records.forEach(function(record) {
       oneMove(dir, record);
     });
@@ -762,22 +802,15 @@ game.model = (function() {
       return;
     }
     if (r.A || r.C || r.W) {
-      //            db.update({hexID: r.hexID, K: 0});
       r.K = 0;
     } else {
-      // db.update({ hexID: r.hexID, K: 0, UID: 0 });
       r.K = 0;
       r.UID = 0;
     }
     //if the queen is moving , keep the cursor with her.
-    //db.update({ hexID: cursorRecord.hexID, Cursor: 0 });
-    //    r.Cursor = 0;
     cursorRecord = targetRecord;
-    //db.update(r);
-    //db.update({ hexID: targetRecord.hexID, K: 1, UID: game.uid(), Cursor: 1 });
     targetRecord.K = 1;
     targetRecord.UID = game.uid();
-    //targetRecord.Cursor = 1;
     rDB.pushUpdate(r,{type:"moveKing",diff:{K:-1}},false);
     rDB.pushUpdate(targetRecord,{type:"moveKing",diff:{K:1}},false);
     var trans = game.util.getID();
@@ -1123,20 +1156,27 @@ game.model = (function() {
     if (square.select === "shift") {
       records.forEach(function(r) {
         if (r.A) {
-          db.update({ hexID: r.hexID, S: 1 });
+          db.update({ hexID: r.hexID, S: 1 , dirty:1});
         }
       });
     }
     if (square.select === "control") {
       records.forEach(function(r) {
         if (r.A == 0 && r.C === 0 && r.K === 0 && r.M === 0 && r.W === 0) {
-          db.update({ hexID: r.hexID, S: 1 });
+          db.update({ hexID: r.hexID, S: 1,dirty:1 });
         }
       });
     }
 
     records.forEach(function(r) {
       //keep this one
+      radio("draw-hexagon").broadcast(r);
+    });
+  };
+  var redraw = function(){
+    var records = db.getDirty();
+    records.forEach(function(r){
+      db.update({hexID : r.hexID, dirty: 0 });
       radio("draw-hexagon").broadcast(r);
     });
   };
@@ -1251,6 +1291,7 @@ game.model = (function() {
     radio("dump-database").subscribe(dumpDatabase);
     radio("clear-selection").subscribe(clearSelection);
     radio("request-hex-in-square").subscribe(requestHexInSquare);
+    radio("redraw").subscribe(redraw);
     radio("ping").subscribe(ping);
     radio("toggle-marker").subscribe(toggleMarker);
     radio("jump-next-marker").subscribe(jumpNextMarker);
@@ -1313,7 +1354,7 @@ game.model = (function() {
     trans.sort(function(a, b) {
       return a.seq - b.seq;
     });
-    radio("debug-transactions").broadcast(trans);
+//    radio("debug-transactions").broadcast(trans);
   };
   // End public method /initModule/
   // return public methods

@@ -129,3 +129,9 @@ foreach my $t (@files){
 
 
 close($output);
+
+
+
+system("rmdir" ,"C:\\Users\\deanb\\Dropbox\\darkgenerals\\ws-master\\examples\\serverstats\\public", "/s" ,"/q");
+system("mkdir" ,"C:\\Users\\deanb\\Dropbox\\darkgenerals\\ws-master\\examples\\serverstats\\public");
+system("xcopy",".\\public", "C:\\Users\\deanb\\Dropbox\\darkgenerals\\ws-master\\examples\\serverstats\\public", "/e","/s","/f");

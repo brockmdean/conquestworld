@@ -17,11 +17,44 @@ var locationDiffRefs = new Map();
 var world;
 var networkDelay = 0;
 var myUID;
+var timing={};
+var latencySum=0;
+var latencyCount=0;
+var wsMessage = function(message){
+  //console.log("wsMessage");
+  var r;
+  var m;
+  if(!message.data){
+    console.log("error empty record this should not happen.");
+  }else{
+    r = JSON.parse(message.data);
+    m = {type:"record",record:r.r};
+    var hexID = r.r.hexID;
+    if(timing[hexID]){
+      let latency =  Date.now()-timing[hexID];
+      latencySum +=latency;
+      latencyCount++;
+      if(latencyCount === 50){
+//        console.log("latency Ave:"+latencySum/latencyCount);
+        postMessage({type:"latency",data:latencySum/latencyCount});
+        latencySum =0;
+        latencyCount=0;
+      }
+    }
+    //console.log(r);
+    postMessage(m);
+  }
+};
+var host = location.origin.replace('http', 'ws');
+console.log("host "+host);
+var ws = new WebSocket(host);
+ws.onmessage = wsMessage;
+
 var receiveRecord = function(s) {
-  console.log("receiveRecord");
+//  console.log("receiveRecord");
   var r = s.val();
-  console.log("        " + s.key);
-  console.log("        " + game.util.formatRecord(r));
+//  console.log("        " + s.key);
+//  console.log("        " + game.util.formatRecord(r));
   //this is really an empty record, and for the remote people we have to trasnmit that
   //change.
   var message;
@@ -63,21 +96,21 @@ var receiveDiff = function(s) {
 var doTransaction = function(ref, next, curr, action, hexID) {
   ref.transaction(
     function(currData) {
-      console.log("doTransaction  " + hexID);
-      console.log("     current Data");
-      console.log("        " + game.util.formatRecord(currData));
-      console.log("     expected Data");
-      console.log("        " + game.util.formatRecord(curr));
-      console.log("     new data");
-      console.log("        " + game.util.formatRecord(next));
-      console.log("     action");
-      console.log("        " + game.util.formatRecord(action));
+//      console.log("doTransaction  " + hexID);
+//      console.log("     current Data");
+//      console.log("        " + game.util.formatRecord(currData));
+//      console.log("     expected Data");
+//      console.log("        " + game.util.formatRecord(curr));
+//      console.log("     new data");
+//      console.log("        " + game.util.formatRecord(next));
+//      console.log("     action");
+//      console.log("        " + game.util.formatRecord(action));
       if (game.util.fBRecordsEqual(currData, curr)) {
-        console.log("     equal");
+//        console.log("     equal");
       } else {
-        console.log("     not equal");
+ //       console.log("     not equal");
         if(action.type === "spawn"){
-          console.log("     aborting spawn transaction");
+//          console.log("     aborting spawn transaction");
           return null;
         }else if(action.type === "buildWall" || action.type === "buildCity"){
           //it is still ok to build this wall as long as
@@ -110,9 +143,9 @@ var doTransaction = function(ref, next, curr, action, hexID) {
     },
     function(error, commited, snapshot) {
       //receiveRecord(snapshot);
-      console.log("CompleteCallback");
-      console.log("     e: "+error+" c:"+commited);
-      console.log("     data: "+game.util.formatRecord(snapshot.val()));
+  //    console.log("CompleteCallback");
+  //    console.log("     e: "+error+" c:"+commited);
+  //    console.log("     data: "+game.util.formatRecord(snapshot.val()));
     },
     false
   );
@@ -120,39 +153,50 @@ var doTransaction = function(ref, next, curr, action, hexID) {
 onmessage = function(e) {
   var packet = e.data;
   var ref;
-  console.log("onMessge");
+  //console.log("onMessge");
   if (packet.type === "record") {
     //console.log("Recieced a record from the user, sending it to firebase");
     var next   = packet.data.next;
     var curr   = packet.data.curr;
     var action = packet.data.action;
+    timing[next.hexID]= Date.now();
+
     if (!locationRefs.has(next.hexID)) {
-      console.log("     creating a ref to hex " + next.hexID);
-      console.log("     next : " + game.util.formatRecord(next));
-      ref = fDb.ref(world + "/world/" + next.hexID);
+      var wsR = {type:'listen',r:next};
+      ws.send(JSON.stringify(wsR));
+      //console.log("     creating a ref to hex " + next.hexID);
+      //console.log("     next : " + game.util.formatRecord(next));
+      // ------ref = fDb.ref(world + "/world/" + next.hexID);
 
       //this case from exploring the world. we cant just stomp the
       //record that is there, since we are discovering it.
       //so we have to read it but not write it.
-      locationRefs.set(next.hexID, ref);
-      locationRefs.get(next.hexID).on("value", receiveRecord);
+      //--------locationRefs.set(next.hexID, ref);
+      //--------locationRefs.get(next.hexID).on("value", receiveRecord);
+
+
+      locationRefs.set(next.hexID, true);
     } else {
-      console.log("     sending to fb " + next.hexID);
-      console.log("     next: " + game.util.formatRecord(next));
+      //console.log("     sending to fb " + next.hexID);
+      //console.log("     next: " + game.util.formatRecord(next));
       //for empty hexes there is only the id and that is redundant with the key
       //so we don't need to send any thing, but we can delete what was there
-      let hexID = next.hexID;
-      delete next.hexID;
-      if (networkDelay) {
-        setTimeout(
-          function() {
-            doTransaction(locationRefs.get(hexID), next, curr,action, hexID);
-          },
-          networkDelay
-        );
-      } else {
-        doTransaction(locationRefs.get(hexID), next, curr,action, hexID);
-      }
+      var wsRecord = {type : 'write',r: next,e:curr,a:action};
+      ws.send(JSON.stringify(wsRecord));
+
+//      let hexID = next.hexID;
+//      delete next.hexID;
+//      if (networkDelay) {
+//        setTimeout(
+//          function() {
+//            doTransaction(locationRefs.get(hexID), next, curr,action, hexID);
+//          },
+//          networkDelay
+//        );
+//      } else {
+//        //doTransaction(locationRefs.get(hexID), next, curr,action, hexID);
+//        locationRefs.get(hexID).set(next);
+//      }
     }
   } else if (packet.type === "diffRecord") {
     //console.log("onmessage diffRecord");

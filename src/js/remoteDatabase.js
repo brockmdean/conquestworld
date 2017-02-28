@@ -230,10 +230,10 @@ var remoteDatabase = (function() {
       //r.seq = writeSeq;
       //r.tID = transactionID;
       //r.count = 0;
-      console.log("pushupdate");
-      console.log("     " + game.util.formatRecord(r));
-      radio("debug-transactions").broadcast({ f: "pushUpdate" });
-      radio("debug-transactions").broadcast(r);
+      //console.log("pushupdate");
+      //console.log("     " + game.util.formatRecord(r));
+      //radio("debug-transactions").broadcast({ f: "pushUpdate" });
+      //radio("debug-transactions").broadcast(r);
       var curr = lDb.query({ hexID: r.hexID })[0];
       var next = Object.assign({}, r);
       if (curr) {
@@ -244,7 +244,8 @@ var remoteDatabase = (function() {
       next = game.util.deflateRecord(next);
       var localR = Object.assign({}, r);
       localR.local = 1;
-
+      lDb.update({hexID:r.hexID,dirty:1});
+      localR.dirty=1;
       processRecordCallback(localR);
       next.AID = game.uid();
       var packet = { data: { curr: curr, next: next, action:action}, type: "record" };
@@ -295,21 +296,24 @@ var remoteDatabase = (function() {
         processHexRecord(data.record);
       } else if (data.type === "diff") {
         processDiffRecord(data.record);
+      }else if (data.type === "latency"){
+        game.constant.latency=data.data;
       }
     };
     var processHexRecord = function(r) {
-      console.log("processHexRecord");
+      //console.log("processHexRecord");
       r = game.util.inflateRecord(r);
       if (r.AID === game.uid()) {
-        console.log("     filtering "+game.util.formatRecord(r));
+        //console.log("     filtering "+game.util.formatRecord(r));
         return;
       }
       delete r.AID;
       //game.util.printRecord(r);
-      console.log("     processing "+game.util.formatRecord(r));
+      //console.log("     processing "+game.util.formatRecord(r));
 
-      radio("debug-transactions").broadcast({ f: "processRecord" });
-      radio("debug-transactions").broadcast(r);
+      //radio("debug-transactions").broadcast({ f: "processRecord" });
+      //radio("debug-transactions").broadcast(r);
+      lDb.update({hexID:r.hexID,dirty:1});
       processRecordCallback(Object.assign({}, r));
     };
     var processDiffRecord = function(r) {

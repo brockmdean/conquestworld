@@ -92,6 +92,7 @@ var game = (function() {
     $("#ConquestWorld").append(
       '<canvas id=\'GameBoard\' width="1200" height="600"></canvas>'
     );
+//    var cg = document.getElementById("GameBoard").webkitRequestFullscreen();
     game.splash.launchSplash();
     game.drawLayer.initModule("#GameBoard");
       game.model.initModule(name);
@@ -115,8 +116,8 @@ var game = (function() {
     $($container).html(landingHtml);
     $("#playButton").on("click", initGame);
     game.splash.initModule($container);
-      radio('debug-transactions').subscribe(debugTransactions);
-      radio("diff").subscribe(displayDiff);
+      //radio('debug-transactions').subscribe(debugTransactions);
+      //radio("diff").subscribe(displayDiff);
   };
 
     var displayDiff = function(r){

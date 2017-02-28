@@ -194,14 +194,35 @@ game.drawLayer = (function() {
     // cxt.createImageData(kPingRange * 2, kPingRange * 2);
     //centerBoard(queenLocation);
     // allow 4 moves per second.
-    keyInterval = setInterval(executeKey, 250);
+    keyInterval = setInterval(executeKey, game.constant.keyInterval);
     // $(window).bind('beforeunload' ,  function(){radio('debug-clear-fb').broadcast();});
-    drawInterval = setInterval(
+    drawInterval = setTimeout(
       function() {
-        centerBoard(null, true);
+        redraw();
       },
-      100
+      game.constant.redrawInterval
     );
+  };
+
+  var redraw = function(){
+    radio('redraw').broadcast();
+    drawPingMap();
+//    drawBoardFrame();
+    drawBuildCity();
+    drawBuildWall();
+    drawMoveTrails();
+    drawPing();
+    drawQueen();
+    drawMessage();
+    drawGold(cachedGold);
+    drawLeaderBoard(cachedLeaderBoard);
+    drawInterval = setTimeout(
+      function() {
+        redraw();
+      },
+      game.constant.redrawInterval
+    );
+
   };
   var updateCursor = function(r) {
     cachedCursor = r;
@@ -382,7 +403,7 @@ game.drawLayer = (function() {
       }
       layout.origin.x += diffX;
       layout.origin.y += diffY;
-      // drawBoard();
+      drawBoard();
       // multiply by negative 1 ,  because the x and y center points
       // are how far the window has moved ,  so when you drag the
       // the window right ,  increasing xcenter ,  you are showing
@@ -431,8 +452,8 @@ game.drawLayer = (function() {
     if (keyQ.length === 0) {
       return;
     }
-    console.log("execute kepress");
     var key = keyQ.shift();
+    console.log("execute keypress "+key);
     if (key === "w") {
       radio("move").broadcast("north");
     }
@@ -454,7 +475,7 @@ game.drawLayer = (function() {
   };
   var resolveKey = function(e) {
     //  console.log("kepress :"+e.key);
-    console.log("e : " + e.which);
+   //   console.log("e : " + e.which);
     if (e.key === "W" || e.key === "w" || e.which === 38) {
       if (keyQ.length === 0) {
         if (e.shiftKey) {
@@ -577,12 +598,16 @@ game.drawLayer = (function() {
         layout.size.x++;
         layout.size.y++;
       }
+      centerBoardOnQueen();
+      return;
     }
     if (e.key === "-") {
       if (layout.size.x > 5) {
         layout.size.x--;
         layout.size.y--;
       }
+      centerBoardOnQueen();
+      return;
     }
     // debug keystrokes
     if (e.key === ";") {
@@ -602,6 +627,9 @@ game.drawLayer = (function() {
     }
     if (e.ctrlKey) {
       return;
+    }
+    if(e.key===","){
+      console.log("neighbor checks "+window.nChecks);
     }
     e.preventDefault();
     radio("message").broadcast("unknown key pressed : " + e.key);
