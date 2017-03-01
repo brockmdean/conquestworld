@@ -28,6 +28,9 @@ game.model = (function() {
   var getDirty = function(r){
     return r.dirty;
   };
+  var getMoved = function(r){
+    return r.moved;
+  };
   var matchSelectedArmies = function(r) {
     return r.S && r.UID == game.uid() && r.A;
   };
@@ -73,6 +76,7 @@ game.model = (function() {
   db.addIndex(matchSelectedArmies);
   db.addIndex(matchSelected);
   db.addIndex(getDirty);
+  db.addIndex(getMoved);
   var leaderBoard = [];
   var moveDb;
   var gold = 2000;
@@ -104,6 +108,7 @@ game.model = (function() {
   // retrun an array of neighbors for the given hex
   // and put them in the db if they are not there.
   var findNeighbors = function(r) {
+//    console.log("findHeighbors");
     var neighborHexs = [];
     var neighborIDs = [];
     var neighborRecords = [];
@@ -115,11 +120,13 @@ game.model = (function() {
 
     for (var i = 0; i < neighborHexs.length; i++) {
       window.nChecks++;
+//      console.log("     "+HexLib.hexToId(neighborHexs[i]));
       if (db.keyExists(HexLib.hexToId(neighborHexs[i]))) {
         t = db.query({ hexID: HexLib.hexToId(neighborHexs[i]) });
+        
         neighborRecords.push(t[0]);
       } else {
-        //        console.log("adding a neighbor");
+        //console.log("adding a neighbor");
         t = game.util.createRecord({ hexID: HexLib.hexToId(neighborHexs[i]) });
         //t.V=1;
         //TODO do we really need this insert?
@@ -131,7 +138,6 @@ game.model = (function() {
         var from = Object.assign({},t);
         from.T = trans;
         rDB.pushDiffUpdate(from , null);
-
       }
     }
     return neighborRecords;
@@ -139,11 +145,12 @@ game.model = (function() {
   //return the list of hexs taht are distance from the center.
   var findFrontier = function(center ,distance)
   {
+//    console.log("findFrontier");
     var frontier = [];
     var dirs=['east','down','north','up','west','south'];
     var centerHex = center.h;
     var hex = HexLib.hex_add(centerHex ,
-                             HexLib.hex_scale(HexLib.hex_directions.east,distance));
+                             HexLib.hex_scale(HexLib.hex_directions.west,distance));
     for( var i =0 ; i<6; i++){
       for(var j = 0; j<distance; j++){
         window.nChecks++;        
@@ -311,7 +318,7 @@ game.model = (function() {
     }
   };
   var update = function(record) {
-    //      console.log("update");
+    console.log("update");
 //    radio("debug-transactions").broadcast({ f: "Update" });
     window.updateCount++;
     var r;
@@ -346,9 +353,9 @@ game.model = (function() {
     } else {
       localR = db.query({ hexID: r.hexID });
       //filter out records that do no changes
-      if (game.util.recordsEqual(r, localR[0])) {
-        return;
-      }
+//      if (game.util.recordsEqual(r, localR[0])) {
+//        return;
+//      }
       window.updateWorkCount++;
       //        console.log("local Record");
       //        game.util.printRecord(localR[0]);
@@ -360,6 +367,7 @@ game.model = (function() {
       //game.util.printRecord(localR[0]);
       //game.util.printRecord(r);
       r.V = localV;
+      r.moved=localR[0].moved;
       if (!r.local) {
         r.S = localR[0].S;
         r.Marker = localR[0].Marker;
@@ -441,13 +449,17 @@ game.model = (function() {
   //
   var createKing = function() {
     var done = false;
-    var x, y, z;
+    var x, y, z, h;
     x = game.util.getRandomIntInclusive(5, game.constant.kSpawnRange);
       y = game.util.getRandomIntInclusive(5, game.constant.kSpawnRange);
     z = -x - y;
+    if(!game.constant.spawnAtCenter){
     console.log("creating king at x:" + x + " y:" + y + " z:" + z);
     console.log("ocnstraint x+y+z= 0 :" + (x + y + z));
-    var h = HexLib.Hex(x, y, z);
+      h = HexLib.Hex(x, y, z);
+    }else{
+      h = HexLib.Hex(0,0,0);
+    }
     var r = game.util.createRecord({
       UID: game.uid(),
       hexID: HexLib.hexToId(h),
@@ -766,6 +778,7 @@ game.model = (function() {
     window.updateCount = 0;
     window.updateWorkCount = 0;
     window.nChecks = 0;
+    window.nMoved = 0;
     if (queenOn) {
       moveQueen(dir);
       return;
@@ -774,12 +787,46 @@ game.model = (function() {
     // console.log("=======GeoSort "+dir);
     records.sort(geoSort(dir));
     // console.log("=======GeoSort "+dir);
-    records.forEach(function(record) {
-      console.log(record.hexID);
-    });
+    //records.forEach(function(record) {
+    //  console.log(record.hexID);
+    //});
     records.forEach(function(record) {
       oneMove(dir, record);
     });
+    console.log("selected Records: "+records.length);
+    var movedRs=db.getMoved();
+    console.log("actual records moved :"+movedRs.length);
+    movedRs.forEach(function(r){
+      //console.log("    "+r.hexID);
+      rDB.pushUpdate(r,{type:"moveArmy",diff:{A: 1}} , false,true);
+      db.update({hexID:r.hexID,moved:0});
+    });
+
+    //need to update the frontier, because move will not be calling
+    //update any longer .
+    //and we want to do this efficiently
+    //look in the direction of the move, if that neighbor is not
+    //visiable, then we need to do the expanding.
+    movedRs.forEach(function(r){
+      var ns;
+      var nH = HexLib.hex_neighbor(r.h,dir);
+      var n = db.query({hexID:HexLib.hexToId(nH)})[0];
+      if(!n.V){
+        ns = findNeighbors(r);
+        ns.forEach(function(_r) {
+          if (!_r.V) {
+            _r.V = 1;
+            _r.dirty=1;
+            db.update(_r);
+            window.neighborDrawing++;
+          }          
+        });
+        prefetchFrontier(r,2);
+      }
+    });
+
+
+    
     //rDB.openTransaction();
     // updatedRecords.forEach(rDB.pushUpdate);
     // rDB.closeTransaction();
@@ -787,6 +834,7 @@ game.model = (function() {
     //console.log("drew : " + window.neighborDrawing);
     //console.log("update : " + window.updateCount);
     //console.log("update work : " + window.updateWorkCount);
+    
   };
   var moveQueen = function(dir) {
     // var records = db.query(matchQueen);
@@ -896,9 +944,9 @@ game.model = (function() {
     var record = Object.assign({}, recordTemp);
     var mUID, tUID, rUID;
       //moveArmy(record, targetRecord);
-    // console.log("targetRecord");
+     //console.log("targetRecord hexID:"+targetRecord.hexID);
     // game.util.printRecord(targetRecord);
-    // console.log("record");
+     //console.log("record hexID:"+record.hexID);
     // game.util.printRecord(record);
     if (targetRecord.M) {
       return;
@@ -1138,10 +1186,15 @@ game.model = (function() {
       cursorRecord = targetRecord;
       radio("update-cursor").broadcast(cursorRecord);
     }
-    //db.update(record);
-    //db.update(targetRecord);
-    rDB.pushUpdate(record,{type:"moveArmy",diff:{A: 1}} , false);
-    rDB.pushUpdate(targetRecord,{type:"moveArmy",diff:{A: 1}} , false);
+    record.moved=1;
+    targetRecord.moved=1;
+    db.update(record);
+    db.update(targetRecord);
+    //db.update({hexID:record.hexID,moved:1});
+    //db.update({hexID:targetRecord.hexID,moved:1});
+    //rDB.pushUpdate(record,{type:"moveArmy",diff:{A: 1}} , false);
+    //rDB.pushUpdate(targetRecord,{type:"moveArmy",diff:{A: 1}} , false);
+    window.nMoved +=2;
     //updatedRecords.push(targetRecord);
     //updatedRecords.push(record);
   };
@@ -1174,7 +1227,12 @@ game.model = (function() {
     });
   };
   var redraw = function(){
-    var records = db.getDirty();
+    var records;
+    if(game.constant.drawAll){
+      records = db.getAll();
+    }else{
+      records = db.getDirty();
+    }
     records.forEach(function(r){
       db.update({hexID : r.hexID, dirty: 0 });
       radio("draw-hexagon").broadcast(r);

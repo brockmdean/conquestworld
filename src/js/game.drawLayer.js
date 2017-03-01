@@ -630,6 +630,7 @@ game.drawLayer = (function() {
     }
     if(e.key===","){
       console.log("neighbor checks "+window.nChecks);
+      console.log("armies moved "+window.nMoved);
     }
     e.preventDefault();
     radio("message").broadcast("unknown key pressed : " + e.key);
@@ -731,13 +732,16 @@ game.drawLayer = (function() {
     cxt.fillText("P", pingBox.x + 7, pingBox.y + pingBox.width - 8);
   };
   var drawBuildCity = function() {
+    cxt.save();
     cxt.clearRect(city.x, city.y, city.width, city.width);
     cxt.strokeStyle = "black";
+    cxt.fillStyle = "black";
     cxt.font = "22px serif";
     cxt.strokeRect(city.x, city.y, city.width, city.width);
     cxt.strokeText("C", city.x + 7, city.y + city.width - 12);
     cxt.font = "10px san-serif";
     cxt.fillText(cityCost, city.x + 2, city.y + city.width - 3);
+    cxt.restore();
   };
   var drawBuildWall = function() {
     cxt.clearRect(wall.x, wall.y, wall.width, wall.width);
@@ -940,9 +944,13 @@ game.drawLayer = (function() {
     if (!onScreen(record)) {
       return;
     }
-    if (!record.V && !game.visibility()) {
-      drawHexagonBackground(record.h, "black");
-      return;
+    if(game.constant.drawAll){
+      if (!record.V) {
+        drawHexagonBackground(record.h, "grey");
+        return;
+      }
+    }else{
+      if(!record.V){ return}
     }
     //don't draw over the leaderboard etc ...
     if (overlap(record.h, leaderBoardArea)) {

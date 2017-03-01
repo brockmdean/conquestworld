@@ -6,3 +6,5 @@ game.constant.kSpawnRange = 200;
 game.constant.redrawInterval = 125;
 game.constant.latency = 250;
 game.constant.keyInterval = 250;
+game.constant.drawAll= false;
+game.constant.spawnAtCenter = false;

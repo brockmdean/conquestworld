@@ -42,7 +42,7 @@ database = (function(){
 	keyExists         : localDb.keyExists,
 	addIndex          : addIndex,
         print             : localDb.print,
-
+      getAll              : localDb.getAll,
 	initModule            : remoteDb.initModule,
         openTransaction       : remoteDb.openTransaction,
         pushUpdate            : remoteDb.pushUpdate,

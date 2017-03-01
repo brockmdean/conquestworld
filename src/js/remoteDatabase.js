@@ -225,7 +225,7 @@ var remoteDatabase = (function() {
       _outgoingCount++;
     };
     // public
-    var pushUpdate = function(r, action ,force) {
+    var pushUpdate = function(r, action ,force,skipCallback) {
       _outgoingCount++;
       //r.seq = writeSeq;
       //r.tID = transactionID;
@@ -234,6 +234,11 @@ var remoteDatabase = (function() {
       //console.log("     " + game.util.formatRecord(r));
       //radio("debug-transactions").broadcast({ f: "pushUpdate" });
       //radio("debug-transactions").broadcast(r);
+
+      //this is not going to work if the move function
+      //updates the database.
+      //the server is depending on this for
+      //collision detection.
       var curr = lDb.query({ hexID: r.hexID })[0];
       var next = Object.assign({}, r);
       if (curr) {
@@ -246,7 +251,9 @@ var remoteDatabase = (function() {
       localR.local = 1;
       lDb.update({hexID:r.hexID,dirty:1});
       localR.dirty=1;
-      processRecordCallback(localR);
+      if(!skipCallback){
+        processRecordCallback(localR);
+      }
       next.AID = game.uid();
       var packet = { data: { curr: curr, next: next, action:action}, type: "record" };
       if (force) {
@@ -301,15 +308,15 @@ var remoteDatabase = (function() {
       }
     };
     var processHexRecord = function(r) {
-      //console.log("processHexRecord");
+//      console.log("processHexRecord");
       r = game.util.inflateRecord(r);
       if (r.AID === game.uid()) {
-        //console.log("     filtering "+game.util.formatRecord(r));
+//        console.log("     filtering "+game.util.formatRecord(r));
         return;
       }
       delete r.AID;
       //game.util.printRecord(r);
-      //console.log("     processing "+game.util.formatRecord(r));
+//      console.log("     processing "+game.util.formatRecord(r));
 
       //radio("debug-transactions").broadcast({ f: "processRecord" });
       //radio("debug-transactions").broadcast(r);
